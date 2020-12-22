@@ -1,0 +1,4 @@
+# test extension
+comment = 'apriori algorithm extension iter1'
+default_version = '0.0.1'
+relocatable = true
