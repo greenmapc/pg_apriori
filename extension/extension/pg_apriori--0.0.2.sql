@@ -1,10 +1,31 @@
-\echo Use "CREATE EXTENSION apriori_iter1_ext" to load this file. \quit
+\echo Use "CREATE EXTENSION pg_apriori" to load this file. \quit
 
-CREATE OR REPLACE FUNCTION apriori_iter1(IN t_name VARCHAR) RETURNS VARCHAR AS
+CREATE OR REPLACE FUNCTION apriori(IN json_data VARCHAR) RETURNS VARCHAR AS
 $$
 
+    import json
     from collections import defaultdict
     from itertools import chain, combinations
+
+    class Data:
+        def __init__(self, table_name, transaction_column, item_column):
+            self.tale_name = table_name
+            self.transaction_column = transaction_column
+            self.item_column = item_column
+
+
+    json_attr = {"table_name", "transaction_column", "item_column"}
+
+
+    def prepare_data_from_json(json_data):
+        json_data = json.loads(json_data)
+        keys_list = set()
+        for key in json_data.keys():
+            keys_list.add(key)
+        if json_attr != keys_list:
+            raise ValueError("Bad json")
+        return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"])
+
 
     def subsets(arr):
         """ Returns non empty subsets of arr"""
@@ -33,17 +54,19 @@ $$
 
         return item_set_with_min_support
 
+        # генерация кандидатов
+        # todo генерировать в отсортированном порядке для хэш дерева
 
-    # генерация кандидатов
-    # todo генерировать в отсортированном порядке для хэш дерева
+
     def generate_candidates(item_set, length):
         """Join a set with itself and returns the n-element itemsets"""
         return set(
             [i.union(j) for i in item_set for j in item_set if len(i.union(j)) == length]
         )
 
+        # get list of transactions and set of all transactions elements
 
-    # get list of transactions and set of all transactions elements
+
     def get_item_set_transaction_list(transtactions):
         transaction_list = list()
         item_set = set()
@@ -112,8 +135,9 @@ $$
                             rules_result.append(((tuple(element), tuple(remain)), confidence))
         return items_result, rules_result
 
+        # todo change output - transform to table
 
-    # todo change output - transform to table
+
     def printResults(items, rules):
         """prints the generated itemsets sorted by support and the confidence rules sorted by confidence"""
         ans = "\n------------------------ ITEM SETS WITH SUPPORT:"
@@ -142,19 +166,21 @@ $$
 
         return i, r
 
+    data = prepare_data_from_json(json_data)
 
     transactions = {}
-    for row in plpy.cursor("select * from iter1_test_table"):
-        plpy.debug(row)
-        if not row['who'] in transactions:
+    print("A")
+    for row in plpy.cursor("select * from " + data.tale_name):
+        item_column = data.item_column
+        transaction_column = data.transaction_column
+        if not row[transaction_column] in transactions:
             new_list = []
-            new_list.append(row['what'])
-            transactions[row['who']] = new_list
+            new_list.append(row[item_column])
+            transactions[row[transaction_column]] = new_list
         else:
-            transactions[row['who']].append(row['what'])
+            transactions[row[transaction_column]].append(row[item_column])
     items, rules = run_apriori(transactions, 0.17, 0.68)
     return printResults(items, rules)
 
 $$
 LANGUAGE 'plpython3u' VOLATILE;
-
