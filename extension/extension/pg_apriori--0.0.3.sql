@@ -1,8 +1,8 @@
 \echo Use "CREATE EXTENSION pg_apriori" to load this file. \quit
 
-CREATE OR REPLACE FUNCTION apriori(IN json_data VARCHAR) RETURNS VARCHAR AS
+CREATE TYPE apriori_type AS (support_table VARCHAR, rules_table VARCHAR);
+CREATE OR REPLACE FUNCTION apriori(IN json_data VARCHAR) RETURNS SETOF apriori_type AS
 $$
-
     import json
     from collections import defaultdict
     from itertools import chain, combinations
@@ -135,41 +135,68 @@ $$
                             rules_result.append(((tuple(element), tuple(remain)), confidence))
         return items_result, rules_result
 
-        # todo change output - transform to table
+    from datetime import datetime
+
+    def create_tmp_support_table(result_data):
+        dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
+        result_table_name = "pg_apriori_support_" + dt_string
+        create_table_query = "CREATE TABLE " + result_table_name +\
+                             "(" + \
+                             "items VARCHAR []," + \
+                             "support double precision" +\
+                             ")"
+
+        insert_table_query = "INSERT INTO " + result_table_name +\
+                             "(items, support)" + \
+                             " VALUES (ARRAY[%s], %1.3f)"
+
+        plpy.execute(create_table_query)
+
+        for item, support in sorted(result_data, key=lambda x: x[1]):
+            if len(item) == 1:
+                item_list = str(item)[1:-2]
+            else:
+                item_list = str(item)[1:-1]
+            plpy.execute(insert_table_query % (item_list, support))
+        return result_table_name
 
 
-    def printResults(items, rules):
-        """prints the generated itemsets sorted by support and the confidence rules sorted by confidence"""
-        ans = "\n------------------------ ITEM SETS WITH SUPPORT:"
-        for item, support in sorted(items, key=lambda x: x[1]):
-            ans += "item: %s , %.3f" % (str(item), support)
-            ans += "\n"
-        ans += "\n------------------------ RULES:"
-        for rule, confidence in sorted(rules, key=lambda x: x[1]):
+    def create_tmp_rule_table(result_data):
+        dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
+        result_table_name = "pg_apriori_rules_" + dt_string
+        create_table_query = "CREATE TABLE " + result_table_name +\
+                             "(" + \
+                             "items_from VARCHAR []," + \
+                             "items_to VARCHAR []," + \
+                             "confidence double precision" +\
+                             ")"
+
+        insert_table_query = "INSERT INTO " + result_table_name +\
+                             "(items_from, items_to, confidence)" + \
+                             " VALUES (ARRAY[%s], ARRAY[%s], %1.3f)"
+
+        plpy.execute(create_table_query)
+
+        for rule, confidence in sorted(result_data, key=lambda x: x[1]):
             pre, post = rule
-            ans += "rule: %s ==> %s , %.3f" % (str(pre), str(post), confidence)
-            ans += "\n"
-        return ans
+            if len(pre) > 1:
+                pre = str(pre)[1:-1]
+            else:
+                pre = str(pre)[1:-2]
+            if len(post) > 1:
+                post = str(post)[1:-1]
+            else:
+                post = str(post)[1:-2]
+            plpy.execute(insert_table_query % (pre, post, confidence))
+        return result_table_name
 
-
-    def to_str_results(items, rules):
-        """prints the generated itemsets sorted by support and the confidence rules sorted by confidence"""
-        i, r = [], []
-        for item, support in sorted(items, key=lambda x: x[1]):
-            x = "item: %s , %.3f" % (str(item), support)
-            i.append(x)
-
-        for rule, confidence in sorted(rules, key=lambda x: x[1]):
-            pre, post = rule
-            x = "Rule: %s ==> %s , %.3f" % (str(pre), str(post), confidence)
-            r.append(x)
-
-        return i, r
+    def prepare_result(support_result, rules):
+        support_table_name = create_tmp_support_table(support_result)
+        rules_table_name = create_tmp_rule_table(rules)
+        return support_table_name, rules_table_name
 
     data = prepare_data_from_json(json_data)
-
     transactions = {}
-    print("A")
     for row in plpy.cursor("select * from " + data.tale_name):
         item_column = data.item_column
         transaction_column = data.transaction_column
@@ -180,7 +207,8 @@ $$
         else:
             transactions[row[transaction_column]].append(row[item_column])
     items, rules = run_apriori(transactions, 0.17, 0.68)
-    return printResults(items, rules)
+    return [prepare_result(items, rules)]
+
 
 $$
 LANGUAGE 'plpython3u' VOLATILE;
