@@ -26,7 +26,7 @@ $$
             raise ValueError("Bad json")
         return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"])
 
-    import csv, itertools, parameters
+    import csv, itertools
 
 
     def find_frequent_one(data_set, support):
@@ -77,14 +77,14 @@ $$
                 if len(node.bucket) == self.max_leaf_cnt:
                     for old_itemset, old_cnt in node.bucket.items():
 
-                        hash_key = self.hash(old_itemset[index])
+                        hash_key = self.hash_function(old_itemset[index])
                         if hash_key not in node.children:
                             node.children[hash_key] = HNode()
                         self.recur_insert(node.children[hash_key], old_itemset, index + 1, old_cnt)
                     del node.bucket
                     node.isLeaf = False
             else:
-                hash_key = self.hash(itemset[index])
+                hash_key = self.hash_function(itemset[index])
                 if hash_key not in node.children:
                     node.children[hash_key] = HNode()
                 self.recur_insert(node.children[hash_key], itemset, index + 1, cnt)
@@ -102,7 +102,7 @@ $$
                     if itemset in runner.bucket:
                         runner.bucket[itemset] += 1
                     break
-                hash_key = self.hash(itemset[index])
+                hash_key = self.hash_function(itemset[index])
                 if hash_key in runner.children:
                     runner = runner.children[hash_key]
                 else:
@@ -124,8 +124,8 @@ $$
             self.dfs(self.root, support_cnt)
             return self.frequent_itemsets
 
-        def hash(self, val):
-            return val % self.max_child_cnt
+        def hash_function(self, val):
+            return hash(val) % self.max_child_cnt
 
 
     def generate_hash_tree(candidate_itemsets, length, max_leaf_cnt=4, max_child_cnt=5):
@@ -184,11 +184,15 @@ $$
 
     def generate_association_rules(f_itemsets, confidence):
         hash_map = {}
+        sorted_itemsets = []
         for itemset in f_itemsets:
+            arr = sorted(itemset[0])
+            sorted_itemsets.append((arr, itemset[1]))
+        for itemset in sorted_itemsets:
             hash_map[tuple(itemset[0])] = itemset[1]
 
         a_rules = []
-        for itemset in f_itemsets:
+        for itemset in sorted_itemsets:
             length = len(itemset[0])
             if length == 1:
                 continue
@@ -198,6 +202,8 @@ $$
 
                 lefts = map(list, itertools.combinations(itemset[0], i))
                 for left in lefts:
+                    if not tuple(left) in hash_map:
+                        continue
                     conf = 100.0 * union_support / hash_map[tuple(left)]
                     if conf >= confidence:
                         a_rules.append([left, list(set(itemset[0]) - set(left)), conf])
@@ -222,7 +228,8 @@ $$
         plpy.execute(create_table_query)
 
         for item, support in result_data:
-            plpy.execute(insert_table_query % (item, support))
+            item_string = list(map(lambda r: str(r), item))
+            plpy.execute(insert_table_query % (item_string, support))
         return result_table_name
 
 
@@ -238,21 +245,15 @@ $$
 
         insert_table_query = "INSERT INTO " + result_table_name +\
                              "(items_from, items_to, confidence)" + \
-                             " VALUES (ARRAY[%s], ARRAY[%s], %1.3f)"
+                             " VALUES (ARRAY%s, ARRAY%s, %1.3f)"
 
         plpy.execute(create_table_query)
 
-        for rule, confidence in sorted(result_data, key=lambda x: x[1]):
-            pre, post = rule
-            if len(pre) > 1:
-                pre = str(pre)[1:-1]
-            else:
-                pre = str(pre)[1:-2]
-            if len(post) > 1:
-                post = str(post)[1:-1]
-            else:
-                post = str(post)[1:-2]
-            plpy.execute(insert_table_query % (pre, post, confidence))
+        for rule_from, rule_to, confidence in result_data:
+            rule_from_string = list(map(lambda r: str(r), rule_from))
+            rule_to_string = list(map(lambda r: str(r), rule_to))
+            plpy.execute(insert_table_query % (rule_from_string, rule_to_string, confidence))
+
         return result_table_name
 
     def prepare_result(support_result, rules):
@@ -260,20 +261,20 @@ $$
         rules_table_name = create_tmp_rule_table(rules)
         return support_table_name, rules_table_name
 
-    data = prepare_data_from_json(json_data)
+    dataset = prepare_data_from_json(json_data)
     transactions = {}
-    for row in plpy.cursor("select * from " + data.tale_name):
-        item_column = data.item_column
-        transaction_column = data.transaction_column
+    for row in plpy.cursor("select * from " + dataset.tale_name):
+        item_column = dataset.item_column
+        transaction_column = dataset.transaction_column
         if not row[transaction_column] in transactions:
             new_list = []
             new_list.append(row[item_column])
             transactions[row[transaction_column]] = new_list
         else:
             transactions[row[transaction_column]].append(row[item_column])
-    frequent = apriori_generate_frequent_itemsets(data, parameters.SUPPORT)
-    a_rules = generate_association_rules(frequent, parameters.CONFIDENCE)
-    return [prepare_result(items, rules)]
+    frequent = apriori_generate_frequent_itemsets(transactions, 3)
+    a_rules = generate_association_rules(frequent, 5)
+    return [prepare_result(frequent, a_rules)]
 
 $$
 LANGUAGE 'plpython3u' VOLATILE;
