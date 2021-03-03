@@ -38,6 +38,7 @@ def find_frequent_one_map(dataset, map_result):
                 result[item] = 1
     # stop = timeit.default_timer()
     # print("map time for pid = ", os.getpid(), stop - start)
+    # map_result[os.getpid] = result
     map_result.put(result)
 
 
@@ -105,7 +106,7 @@ def separate_data_for_processes(processes_size, dataset):
 
 def run_find_frequent_map(processes_size, separated_dataset):
     start = timeit.default_timer()
-    map_result = multiprocessing.Queue()
+    map_result = multiprocessing.Manager().Queue()
     jobs = []
     for i in range(processes_size):
         j = Process(target=find_frequent_one_map,
@@ -128,7 +129,7 @@ def run_find_frequent_reduce(processes_size, shuffle_result, min_support):
     start = timeit.default_timer()
     separated_dataset = separate_data_for_processes(processes_size, shuffle_result)
 
-    reduce_result = multiprocessing.Queue()
+    reduce_result = multiprocessing.Manager().Queue()
     jobs = []
     for i in range(processes_size):
         j = Process(target=find_frequent_one_reduce,
@@ -166,30 +167,32 @@ def one_process_test(dataset):
 
 
 def map_reduce_find_frequent_items(dataset, support_cnt):
-    # one_process_test(dataset)
     processes_size = 2
     separated_dataset = separate_data_for_processes(processes_size, dataset)
-    # start = timeit.default_timer()
+    start = timeit.default_timer()
     map_result = run_find_frequent_map(processes_size, separated_dataset)
-    # print("map function finished")
-    # shuffle_result = find_frequent_one_shuffle(map_result)
-    # print("shuffle function finished")
-    # reduce_result = run_find_frequent_reduce(processes_size, shuffle_result, support_cnt)
-    # print("reduce function finished")
-    # stop = timeit.default_timer()
-    # print("MAP REDUCE TIME", stop - start)
+    print("map function finished")
+    shuffle_result = find_frequent_one_shuffle(map_result)
+    print("shuffle function finished")
+    reduce_result = run_find_frequent_reduce(processes_size, shuffle_result, support_cnt)
+    print("reduce function finished")
+    stop = timeit.default_timer()
+    print("MAP REDUCE TIME", stop - start)
+    while not reduce_result.empty():
+        current = map_result.get()
+        print(current)
 
 
 def apriori_generate_frequent_itemsets(dataset, support):
     support_cnt = int(support / 100.0 * len(dataset))
 
-    # start = timeit.default_timer()
-    # print(find_frequent_one_simple(dataset, support))
-    # stop = timeit.default_timer()
-    # print("SIMPLE ALGORITHM TIME ", stop - start)
+    start = timeit.default_timer()
+    print(find_frequent_one_simple(dataset, support))
+    stop = timeit.default_timer()
+    print("SIMPLE ALGORITHM TIME ", stop - start)
 
     # поиск одноэлементных наборов, поддержка которых превышает порог
-    run_find_frequent_map_with_pool(2, dataset)
+    # run_find_frequent_map_with_pool(2, dataset)
     map_reduce_find_frequent_items(dataset, support_cnt)
 
 
@@ -989,7 +992,7 @@ dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '114
            1416: ['11580', 'ASIAN', 'MBE', 'Valley Stream'], 1417: ['Brooklyn', 'BLACK', '11214', 'MBE'],
            1418: ['LBE', '10016', 'New York'], 1419: ['10002', 'New York', 'ASIAN', 'MBE']}
 # dataset = load_data('kaggle_dataset.txt')
-# dataset = load_data('million_data.csv')
+dataset = load_data('million_data.csv')
 # dataset = generate_dataset(100000)
 print("Transactions size: ", len(dataset))
 # item_set = dict()
