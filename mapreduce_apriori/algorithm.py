@@ -1,6 +1,5 @@
 import csv
 import multiprocessing
-import os
 import timeit
 from multiprocessing import Process
 
@@ -28,9 +27,10 @@ def find_frequent_one_simple(data_set, support):
 
 def find_frequent_one_simple_run(dataset, support):
     start = timeit.default_timer()
-    find_frequent_one_simple(dataset, support)
+    res = find_frequent_one_simple(dataset, support)
     stop = timeit.default_timer()
     print("SIMPLE ALGORITHM TIME ", stop - start)
+    return res
 
 
 def find_frequent_one_map(dataset, map_result):
@@ -73,7 +73,6 @@ def find_frequent_one_shuffle(map_result):
 
 def find_frequent_one_reduce(map_result, min_support, reduce_result):
     result = dict()
-    print(os.getpid())
     for key, value in map_result.items():
         current_count = 0
         for term in value:
@@ -90,13 +89,17 @@ def separate_data_for_processes(processes_size, dataset):
     border = step
     current_data = {}
     item_num = 0
+    last_chunk = False
     for i in dataset.items():
-        if item_num == border or item_num == len(dataset) - 1:
+        if (item_num == border and not last_chunk) or item_num == len(dataset) - 1:
             datasets.append(current_data)
+            if last_chunk:
+                current_data[i[0]] = i[1]
+            if len(datasets) == processes_size - 1:
+                last_chunk = True
             current_data = {}
             border += step
-        else:
-            current_data[i[0]] = i[1]
+        current_data[i[0]] = i[1]
         item_num += 1
     stop = timeit.default_timer()
     print("separate dataset time ", stop - start)
@@ -142,7 +145,7 @@ def run_find_frequent_reduce(processes_size, shuffle_result, min_support):
 
 
 def map_reduce_find_frequent_items(dataset, support_cnt):
-    processes_size = 3
+    processes_size = 2
     separated_dataset = separate_data_for_processes(processes_size, dataset)
     start = timeit.default_timer()
     map_result = run_find_frequent_map(processes_size, separated_dataset)
@@ -153,6 +156,14 @@ def map_reduce_find_frequent_items(dataset, support_cnt):
     print("reduce function finished")
     stop = timeit.default_timer()
     print("MAP REDUCE TIME", stop - start)
+    check_sum = 0
+    while not reduce_result.empty():
+        current = reduce_result.get()
+        for item in current.values():
+            check_sum += item
+        print(current)
+    print(check_sum)
+
 
 
 def apriori_generate_frequent_itemsets(dataset, support):
@@ -959,6 +970,6 @@ dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '114
            1418: ['LBE', '10016', 'New York'], 1419: ['10002', 'New York', 'ASIAN', 'MBE']}
 # dataset = load_data('kaggle_dataset.txt')
 # dataset = load_data('million_data.csv')
-dataset = generate_dataset(10000000, 1000000)
+# dataset = generate_dataset(10000000, 1000000)
 print("Transactions size: ", len(dataset))
 frequent = apriori_generate_frequent_itemsets(dataset, parameters.SUPPORT)
