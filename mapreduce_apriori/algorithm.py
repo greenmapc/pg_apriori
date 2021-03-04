@@ -2,7 +2,7 @@ import csv
 import multiprocessing
 import os
 import timeit
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 
 import parameters
 from mapreduce_apriori.datasets_generator import generate_dataset
@@ -26,9 +26,14 @@ def find_frequent_one_simple(data_set, support):
     return frequent_1
 
 
+def find_frequent_one_simple_run(dataset, support):
+    start = timeit.default_timer()
+    find_frequent_one_simple(dataset, support)
+    stop = timeit.default_timer()
+    print("SIMPLE ALGORITHM TIME ", stop - start)
+
+
 def find_frequent_one_map(dataset, map_result):
-    # print("start map", os.getpid())
-    # start = timeit.default_timer()
     result = {}
     for transaction in dataset.values():
         for item in transaction:
@@ -36,14 +41,10 @@ def find_frequent_one_map(dataset, map_result):
                 result[item] += 1
             else:
                 result[item] = 1
-    # stop = timeit.default_timer()
-    # print("map time for pid = ", os.getpid(), stop - start)
-    # map_result[os.getpid] = result
     map_result.put(result)
 
 
 def find_frequent_one_map_where_dataset_list(dataset):
-    # print(os.getpid())
     result = {}
     for transaction in dataset.values():
         for item in transaction:
@@ -51,8 +52,6 @@ def find_frequent_one_map_where_dataset_list(dataset):
                 result[item] += 1
             else:
                 result[item] = 1
-
-    # map_result[os.getpid()] = result
     return result
 
 
@@ -114,14 +113,11 @@ def run_find_frequent_map(processes_size, separated_dataset):
         jobs.append(j)
         j.start()
 
-    # todo fix deadlock
     for job in jobs:
-        print("join")
         job.join()
 
     stop = timeit.default_timer()
     print("map time = ", stop - start)
-    # print(map_result.get())
     return map_result
 
 
@@ -138,36 +134,15 @@ def run_find_frequent_reduce(processes_size, shuffle_result, min_support):
         j.start()
 
     for job in jobs:
-        print("join ")
         job.join()
 
     stop = timeit.default_timer()
     print("reduce time ", stop - start)
-    print(reduce_result.get())
     return reduce_result
 
 
-def run_find_frequent_map_with_pool(processes_size, dataset):
-    separated_dataset = separate_data_for_processes(processes_size, dataset)
-    start = timeit.default_timer()
-    pool = multiprocessing.Pool(processes=processes_size)
-    result = pool.map(find_frequent_one_map_where_dataset_list, separated_dataset)
-    pool.close()
-    stop = timeit.default_timer()
-    print("with pool time = ", stop - start)
-    return result
-
-
-def one_process_test(dataset):
-    start = timeit.default_timer()
-    map_result = multiprocessing.Queue()
-    find_frequent_one_map(dataset, map_result)
-    stop = timeit.default_timer()
-    print("one process time", stop - start)
-
-
 def map_reduce_find_frequent_items(dataset, support_cnt):
-    processes_size = 2
+    processes_size = 3
     separated_dataset = separate_data_for_processes(processes_size, dataset)
     start = timeit.default_timer()
     map_result = run_find_frequent_map(processes_size, separated_dataset)
@@ -178,21 +153,12 @@ def map_reduce_find_frequent_items(dataset, support_cnt):
     print("reduce function finished")
     stop = timeit.default_timer()
     print("MAP REDUCE TIME", stop - start)
-    while not reduce_result.empty():
-        current = map_result.get()
-        print(current)
 
 
 def apriori_generate_frequent_itemsets(dataset, support):
     support_cnt = int(support / 100.0 * len(dataset))
 
-    start = timeit.default_timer()
-    print(find_frequent_one_simple(dataset, support))
-    stop = timeit.default_timer()
-    print("SIMPLE ALGORITHM TIME ", stop - start)
-
     # поиск одноэлементных наборов, поддержка которых превышает порог
-    # run_find_frequent_map_with_pool(2, dataset)
     map_reduce_find_frequent_items(dataset, support_cnt)
 
 
@@ -992,14 +958,7 @@ dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '114
            1416: ['11580', 'ASIAN', 'MBE', 'Valley Stream'], 1417: ['Brooklyn', 'BLACK', '11214', 'MBE'],
            1418: ['LBE', '10016', 'New York'], 1419: ['10002', 'New York', 'ASIAN', 'MBE']}
 # dataset = load_data('kaggle_dataset.txt')
-dataset = load_data('million_data.csv')
-# dataset = generate_dataset(100000)
+# dataset = load_data('million_data.csv')
+dataset = generate_dataset(10000000, 1000000)
 print("Transactions size: ", len(dataset))
-# item_set = dict()
-# for item in dataset.values():
-#     for transaction in item:
-#         if transaction in item_set:
-#             item_set[transaction] += 1
-#         else:
-#             item_set[transaction] = 0
 frequent = apriori_generate_frequent_itemsets(dataset, parameters.SUPPORT)
