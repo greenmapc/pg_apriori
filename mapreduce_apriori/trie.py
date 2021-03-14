@@ -3,9 +3,34 @@ class TrieNode(object):
         self.item = item
         self.depth = depth
         self.items = items
+        self.support = 0
         self.children = []
         self.invalid = False
         self.word_finished = False
+
+class Child(object):
+    def __init__(self, node):
+        self.node = node
+        self.next = None
+        self.prev = None
+
+    def add_next(self, next):
+        next.prev = self.node
+        self.next = next
+
+class TrieChildren(object):
+
+    def __init__(self):
+        self.last = None
+        self.list = []
+
+    def add_child(self, child):
+        if self.last is None:
+            self.last = child
+        else:
+            self.last.next = child
+            child.prev = self.last.next
+            self.last = child
 
 
 def binary_search(array, target):
@@ -30,6 +55,34 @@ def binary_search(array, target):
     return None
 
 
+def find_frequent_itemsets(node, support):
+    if node.word_finished:
+        if node.support < support:
+            node.invalid = True
+            return []
+        else:
+            return [(node.items, node.support)]
+    else:
+        result = []
+        for i in range(len(node.children) - 1, -1, -1):
+            nodes = find_frequent_itemsets(node.children[i], support)
+            result.extend(nodes)
+            if node.children[i].invalid:
+                node.children.remove(node.children[i])
+        if len(node.children) == 0:
+            node.invalid = True
+        return result
+
+def count_support(node, target, iterator):
+    if node.items == target:
+        node.support += 1
+        return
+    current_item = next(iterator)
+    node = binary_search(node.children, current_item)
+    if node:
+        count_support(node, target, iterator)
+
+
 def add(root, items):
     current_node = root
     for item in items:
@@ -45,6 +98,7 @@ def add(root, items):
 
 
 def search_candidates(visited, node, max_depth, used_candidates_items, candidate_items):
+    node.support = 0
     if node.word_finished:
         node.word_finished = False
         if candidate_items:
@@ -78,23 +132,23 @@ def search_candidates(visited, node, max_depth, used_candidates_items, candidate
 def dfs(visited, node):
     if node not in visited:
         if node.word_finished:
-            print(node.items)
+            print(node.items, node.support)
         visited.add(node)
         for neighbor in node.children:
             dfs(visited, neighbor)
 
-
-# check
-if __name__ == "__main__":
-    root = TrieNode('*', 0, [])
-    add(root, "acd")
-    add(root, 'acg')
-    add(root, 'ach')
-    add(root, 'aeg')
-    add(root, 'aem')
-
-    dfs(set(), root)
-    search_candidates(set(), root, 2, set(), list())
-    print('000')
-    dfs(set(), root)
-
+# frequent_one = [(['BLACK'], 1), (['MBE'], 2), (['NON_MINORITY'], 4), (['WBE'], 3), (['ZZZ'], 5)]
+# current_candidates_tree = TrieNode(None, 0, [])
+# for candidate in frequent_one:
+#     add(current_candidates_tree, candidate[0])
+# k = 2
+# example = ['NON_MINORITY', 'WBE', 'ZZZ']
+# while current_candidates_tree and k <= 3:
+#     search_candidates(set(), current_candidates_tree, k - 1, set(), list())
+#     # todo add count support
+#     dfs(set(), current_candidates_tree)
+#     k += 1
+#     print("end iteration")
+# iterator = iter(example)
+# count_support(current_candidates_tree, example, iterator)
+# dfs(set(), current_candidates_tree)

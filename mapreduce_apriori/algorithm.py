@@ -1,16 +1,24 @@
 import csv
+import itertools
 
-import parameters
+from mapreduce_apriori import parameters
 from mapreduce_apriori.find_requent_one import find_frequent_one_simple_run, find_frequent_one
+from mapreduce_apriori.trie import TrieNode, add, dfs, search_candidates, count_support, find_frequent_itemsets
 
 
-def apriori_generate_frequent_itemsets(dataset, support):
-    # support_cnt = int(support / 100.0 * len(dataset))
+def find_frequent_one_test(dataset, support):
     print(find_frequent_one(dataset, support))
     # print(timeit.timeit("find_frequent_one_simple_run(dataset, support_cnt)", globals=globals()))
     # t = timeit.Timer(lambda: find_frequent_one_simple_run(dataset, support_cnt))
     # print(t.timeit(number=10))
     print(find_frequent_one_simple_run(dataset, support))
+
+
+def generate_k_subsets(dataset, length):
+    subsets = []
+    for row in dataset.values():
+        subsets.extend(map(list, itertools.combinations(row, length)))
+    return subsets
 
 
 def load_data(filename):
@@ -812,5 +820,27 @@ if __name__ == '__main__':
     # dataset = load_data('million_data.csv')
     # dataset = generate_dataset(100000, 100000)
     print("Transactions size: ", len(dataset))
-    frequent = apriori_generate_frequent_itemsets(dataset, parameters.SUPPORT)
-    # print(frequent)
+    # frequent_one = find_frequent_one(dataset, parameters.SUPPORT)
+    frequent_one = [(['BLACK'], 427), (['WBE'], 678), (['MBE'], 953), (['NON-MINORITY'], 426)]
+    print(frequent_one)
+    current_candidates_tree = TrieNode(None, 0, [])
+    for candidate in frequent_one:
+        add(current_candidates_tree, candidate[0])
+    k = 2
+    frequent_itemsets = frequent_one
+    suport = (parameters.SUPPORT * len(dataset) / 100)
+    while current_candidates_tree.children and k <= len(frequent_one):
+        search_candidates(set(), current_candidates_tree, k - 1, set(), list())
+        k_subsets = generate_k_subsets(dataset, k)
+        for subset in k_subsets:
+            count_support(current_candidates_tree, subset, iter(subset))
+        dfs(set(), current_candidates_tree)
+        print("/n")
+        frequent_itemsets.extend(find_frequent_itemsets(current_candidates_tree, suport))
+        dfs(set(), current_candidates_tree)
+        k += 1
+        print("end iteration")
+    current_candidates = frequent_one
+
+    print(frequent_itemsets)
+
