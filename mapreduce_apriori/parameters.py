@@ -1,3 +1,3 @@
 # specify in percent
-SUPPORT = 30
+SUPPORT = 10
 CONFIDENCE = 5

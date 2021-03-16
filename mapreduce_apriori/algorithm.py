@@ -7,7 +7,7 @@ from mapreduce_apriori.trie import TrieNode, add, dfs, search_candidates, count_
 
 
 def find_frequent_one_test(dataset, support):
-    print(find_frequent_one(dataset, support))
+    find_frequent_one(dataset, support)
     # print(timeit.timeit("find_frequent_one_simple_run(dataset, support_cnt)", globals=globals()))
     # t = timeit.Timer(lambda: find_frequent_one_simple_run(dataset, support_cnt))
     # print(t.timeit(number=10))
@@ -32,6 +32,33 @@ def load_data(filename):
                 result[counter].append(item)
         counter += 1
     return result
+
+def generate_association_rules(f_itemsets, confidence):
+    hash_map = {}
+    sorted_itemsets = []
+    for itemset in f_itemsets:
+        arr = sorted(itemset[0])
+        sorted_itemsets.append((arr, itemset[1]))
+    for itemset in sorted_itemsets:
+        hash_map[tuple(itemset[0])] = itemset[1]
+
+    a_rules = []
+    for itemset in sorted_itemsets:
+        length = len(itemset[0])
+        if length == 1:
+            continue
+
+        union_support = hash_map[tuple(itemset[0])]
+        for i in range(1, length):
+
+            lefts = map(list, itertools.combinations(itemset[0], i))
+            for left in lefts:
+                if not tuple(left) in hash_map:
+                    continue
+                conf = 100.0 * union_support / hash_map[tuple(left)]
+                if conf >= confidence:
+                    a_rules.append([left, list(set(itemset[0]) - set(left)), conf])
+    return a_rules
 
 
 if __name__ == '__main__':
@@ -820,8 +847,9 @@ if __name__ == '__main__':
     # dataset = load_data('million_data.csv')
     # dataset = generate_dataset(100000, 100000)
     print("Transactions size: ", len(dataset))
-    # frequent_one = find_frequent_one(dataset, parameters.SUPPORT)
-    frequent_one = [(['BLACK'], 427), (['WBE'], 678), (['MBE'], 953), (['NON-MINORITY'], 426)]
+    frequent_one = find_frequent_one(dataset, parameters.SUPPORT)
+    # frequent_one = [(['ASIAN'], 287), (['BLACK'], 427), (['Brooklyn'], 216), (['HISPANIC'], 233), (['MBE'], 953), (['NON-MINORITY'], 426), (['New York'], 419), (['WBE'], 678)]
+    frequent_one = sorted(frequent_one, key=lambda tup: tup[0])
     print(frequent_one)
     current_candidates_tree = TrieNode(None, 0, [])
     for candidate in frequent_one:
@@ -831,16 +859,17 @@ if __name__ == '__main__':
     suport = (parameters.SUPPORT * len(dataset) / 100)
     while current_candidates_tree.children and k <= len(frequent_one):
         search_candidates(set(), current_candidates_tree, k - 1, set(), list())
+        print("found candidates")
         k_subsets = generate_k_subsets(dataset, k)
         for subset in k_subsets:
             count_support(current_candidates_tree, subset, iter(subset))
         dfs(set(), current_candidates_tree)
-        print("/n")
+        print("found subsets")
         frequent_itemsets.extend(find_frequent_itemsets(current_candidates_tree, suport))
-        dfs(set(), current_candidates_tree)
+        print("end iteration", k)
         k += 1
-        print("end iteration")
-    current_candidates = frequent_one
-
+    a_rules = generate_association_rules(frequent_itemsets, parameters.CONFIDENCE)
     print(frequent_itemsets)
+    print(len(frequent_itemsets))
+    print(a_rules)
 

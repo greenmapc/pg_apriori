@@ -8,6 +8,8 @@ class TrieNode(object):
         self.invalid = False
         self.word_finished = False
 
+
+# todo change structure for storing children
 class Child(object):
     def __init__(self, node):
         self.node = node
@@ -17,6 +19,7 @@ class Child(object):
     def add_next(self, next):
         next.prev = self.node
         self.next = next
+
 
 class TrieChildren(object):
 
@@ -73,6 +76,7 @@ def find_frequent_itemsets(node, support):
             node.invalid = True
         return result
 
+
 def count_support(node, target, iterator):
     if node.items == target:
         node.support += 1
@@ -120,11 +124,13 @@ def search_candidates(visited, node, max_depth, used_candidates_items, candidate
     else:
         if node not in visited:
             visited.add(node)
+            nodes_for_remove = []
             for i in range(len(node.children)):
                 neighbor = node.children[i]
                 search_candidates(visited, neighbor, max_depth, set(), list())
                 if neighbor.invalid:
-                    node.children.remove(neighbor)
+                    nodes_for_remove.append(neighbor)
+            node.children = [x for x in node.children if (x not in nodes_for_remove)]
     if len(node.children) == 0:
         node.invalid = True
 
