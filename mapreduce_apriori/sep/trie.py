@@ -9,33 +9,6 @@ class TrieNode(object):
         self.word_finished = False
 
 
-# todo change structure for storing children
-class Child(object):
-    def __init__(self, node):
-        self.node = node
-        self.next = None
-        self.prev = None
-
-    def add_next(self, next):
-        next.prev = self.node
-        self.next = next
-
-
-class TrieChildren(object):
-
-    def __init__(self):
-        self.last = None
-        self.list = []
-
-    def add_child(self, child):
-        if self.last is None:
-            self.last = child
-        else:
-            self.last.next = child
-            child.prev = self.last.next
-            self.last = child
-
-
 def binary_search(array, target):
     lower = 0
     upper = len(array)
@@ -142,19 +115,3 @@ def dfs(visited, node):
         visited.add(node)
         for neighbor in node.children:
             dfs(visited, neighbor)
-
-# frequent_one = [(['BLACK'], 1), (['MBE'], 2), (['NON_MINORITY'], 4), (['WBE'], 3), (['ZZZ'], 5)]
-# current_candidates_tree = TrieNode(None, 0, [])
-# for candidate in frequent_one:
-#     add(current_candidates_tree, candidate[0])
-# k = 2
-# example = ['NON_MINORITY', 'WBE', 'ZZZ']
-# while current_candidates_tree and k <= 3:
-#     search_candidates(set(), current_candidates_tree, k - 1, set(), list())
-#     # todo add count support
-#     dfs(set(), current_candidates_tree)
-#     k += 1
-#     print("end iteration")
-# iterator = iter(example)
-# count_support(current_candidates_tree, example, iterator)
-# dfs(set(), current_candidates_tree)

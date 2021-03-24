@@ -1,14 +1,8 @@
-from mapreduce_apriori.algorithm import run_algorithm
+from mapreduce_apriori.apriori import run
+from mapreduce_apriori.sep import parameters
+from mapreduce_apriori.sep.apriori import run_algorithm
 
-
-def main_test():
-    expected_result = [(['ASIAN'], 14), (['BLACK'], 17), (['Bronx'], 6), (['HISPANIC'], 8), (['LBE'], 7),
-                       (['MBE'], 39), (['NON-MINORITY'], 9), (['New York'], 17), (['WBE'], 20),
-                       ([('BLACK', 'MBE')], 17), ([('MBE', 'WBE')], 10), ([('ASIAN', 'MBE')], 14),
-                       ([('ASIAN', 'New York')], 6), ([('MBE', 'New York')], 13), ([('New York', 'WBE')], 9),
-                       ([('HISPANIC', 'MBE')], 8), ([('NON-MINORITY', 'WBE')], 9), ([('Bronx', 'MBE')], 6),
-                       ([('ASIAN', 'MBE', 'New York')], 6), ([('MBE', 'New York', 'WBE')], 6)]
-    dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '11411', 'WBE', 'MBE'],
+simple_dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '11411', 'WBE', 'MBE'],
                2: ['Yorktown Heights', '10598', 'BLACK', 'MBE'], 3: ['11561', 'BLACK', 'MBE', 'Long Beach'],
                4: ['11235', 'Brooklyn', 'ASIAN', 'MBE'], 5: ['New York', '10010', 'WBE', 'ASIAN', 'MBE'],
                6: ['10026', 'New York', 'ASIAN', 'MBE'], 7: ['New York', 'BLACK', '10026', 'MBE'],
@@ -39,12 +33,40 @@ def main_test():
                46: ['11219', 'Brooklyn', 'ASIAN', 'MBE'], 47: ['11360', 'ASIAN', 'MBE', 'Bayside'],
                48: ['10001', 'NON-MINORITY', 'WBE', 'New York'], 49: ['10462', 'Bronx', 'MBE', 'HISPANIC'],
                50: ['LBE', 'Bronx', 'BLACK', '10470', 'MBE'], 51: ['11803', 'Plainview', 'ASIAN', 'MBE']}
-    result = run_algorithm(dataset)
+
+def main_test():
+    expected_result = [(['ASIAN'], 14), (['BLACK'], 17), (['Bronx'], 6), (['HISPANIC'], 8), (['LBE'], 7),
+                       (['MBE'], 39), (['NON-MINORITY'], 9), (['New York'], 17), (['WBE'], 20),
+                       ([('ASIAN', 'MBE')], 14), ([('ASIAN', 'New York')], 6), ([('BLACK', 'MBE')], 17),
+                       ([('Bronx', 'MBE')], 6), ([('HISPANIC', 'MBE')], 8), ([('MBE', 'New York')], 13),
+                       ([('MBE', 'WBE')], 10), ([('NON-MINORITY', 'WBE')], 9), ([('New York', 'WBE')], 9),
+                       ([('ASIAN', 'MBE', 'New York')], 6), ([('MBE', 'New York', 'WBE')], 6)]
+    result = run_algorithm(simple_dataset)
+    print(expected_result)
+    print("expected_result")
+    print("result")
+    print(result)
     if (result == expected_result):
         print("OK")
     else:
         print("NOT OK")
 
+def apriori_for_postgres_code_test():
+    expected_result = [(['ASIAN'], 14), (['BLACK'], 17), (['Bronx'], 6), (['HISPANIC'], 8), (['LBE'], 7),
+                       (['MBE'], 39), (['NON-MINORITY'], 9), (['New York'], 17), (['WBE'], 20),
+                       ([('ASIAN', 'MBE')], 14), ([('ASIAN', 'New York')], 6), ([('BLACK', 'MBE')], 17),
+                       ([('Bronx', 'MBE')], 6), ([('HISPANIC', 'MBE')], 8), ([('MBE', 'New York')], 13),
+                       ([('MBE', 'WBE')], 10), ([('NON-MINORITY', 'WBE')], 9), ([('New York', 'WBE')], 9),
+                       ([('ASIAN', 'MBE', 'New York')], 6), ([('MBE', 'New York', 'WBE')], 6)]
+    result = run(simple_dataset, parameters.SUPPORT, parameters.CONFIDENCE)
+    print(expected_result)
+    print("expected_result")
+    print("result")
+    print(result)
+    if (result == expected_result):
+        print("OK")
+    else:
+        print("NOT OK")
 
-#
 # main_test()
+apriori_for_postgres_code_test()

@@ -1,18 +1,10 @@
 import csv
 import itertools
 
-from mapreduce_apriori import parameters
-from mapreduce_apriori.find_frequent_k import find_frequent_k
-from mapreduce_apriori.find_requent_one import find_frequent_one_simple_run, find_frequent_one
-from mapreduce_apriori.trie import TrieNode, add, dfs, search_candidates
-
-
-def find_frequent_one_test(dataset, support):
-    find_frequent_one(dataset, support)
-    # print(timeit.timeit("find_frequent_one_simple_run(dataset, support_cnt)", globals=globals()))
-    # t = timeit.Timer(lambda: find_frequent_one_simple_run(dataset, support_cnt))
-    # print(t.timeit(number=10))
-    print(find_frequent_one_simple_run(dataset, support))
+from mapreduce_apriori.sep import parameters
+from mapreduce_apriori.sep.map_reduce import find_frequent_k
+from mapreduce_apriori.sep.map_reduce import find_frequent_one
+from mapreduce_apriori.sep.trie import TrieNode, add, dfs, search_candidates
 
 
 def generate_k_subsets(dataset, length):
@@ -20,7 +12,6 @@ def generate_k_subsets(dataset, length):
     for row in dataset.values():
         subsets.extend(map(list, sorted(itertools.combinations(row, length))))
     return subsets
-
 
 def load_data(filename):
     reader = csv.reader(open(filename, 'r'), delimiter=',')
@@ -64,38 +55,47 @@ def generate_association_rules(f_itemsets, confidence):
 
 
 def run_algorithm(dataset):
+    support = (parameters.SUPPORT * len(dataset) / 100)
+
     for key, transaction in dataset.items():
         dataset[key] = sorted(transaction)
 
-    frequent_one = find_frequent_one(dataset, parameters.SUPPORT)
+    frequent_one = find_frequent_one(dataset, support)
     # frequent_one = [(['ASIAN'], 287), (['BLACK'], 427), (['Brooklyn'], 216), (['HISPANIC'], 233), (['MBE'], 953), (['NON-MINORITY'], 426), (['New York'], 419), (['WBE'], 678)]
     frequent_one = sorted(frequent_one, key=lambda tup: tup[0])
+    frequent_itemsets = frequent_one
+
+    print("Founded frequent items with length 1")
     print(frequent_one)
+
     current_candidates_tree = TrieNode(None, 0, [])
     for candidate in frequent_one:
         add(current_candidates_tree, candidate[0])
+
     k = 2
-    frequent_itemsets = frequent_one
-    support = (parameters.SUPPORT * len(dataset) / 100)
-    print(support)
-    print("frequent items length 1 found")
     while current_candidates_tree.children and k <= len(frequent_one):
         search_candidates(set(), current_candidates_tree, k - 1, set(), list())
+
         dfs(set(), current_candidates_tree)
-        print("--------------- candidates ------------------")
+        print("Candidates generated")
+
         k_subsets = generate_k_subsets(dataset, k)
+        print("Subsets generated")
+
         frequent_itemsets_k = find_frequent_k(k_subsets, current_candidates_tree, support)
-        print("----------------- found frequent items -------------------")
+        print("Frequent items with length %s generated" % k)
+
+        frequent_itemsets_k = sorted(frequent_itemsets_k, key=lambda tup: tup[0])
         frequent_itemsets.extend(frequent_itemsets_k)
-        current_candidates_tree = TrieNode(None, 0, [])
+        print(frequent_itemsets_k)
 
         # build trie with new frequent itemsets for new generation
-        frequent_itemsets_k = sorted(frequent_itemsets_k, key=lambda tup: tup[0])
-        print(frequent_itemsets_k)
+        current_candidates_tree = TrieNode(None, 0, [])
         for candidate in frequent_itemsets_k:
             add(current_candidates_tree, list(candidate[0][0]))
         dfs(set(), current_candidates_tree)
-        print("---------------- new tree -----------------------")
+        print("New trie generated")
+
         k += 1
 
     a_rules = generate_association_rules(frequent_itemsets, parameters.CONFIDENCE)
