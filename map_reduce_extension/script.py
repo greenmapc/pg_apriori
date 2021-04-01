@@ -1,19 +1,20 @@
 import json
 import itertools
 import multiprocessing
-import os
 import timeit
 from multiprocessing import Process
 
 
 class Data:
-    def __init__(self, table_name, transaction_column, item_column):
+    def __init__(self, table_name, transaction_column, item_column, min_support=50, min_confidence=50):
         self.tale_name = table_name
         self.transaction_column = transaction_column
         self.item_column = item_column
+        self.min_support = int(min_support)
+        self.min_confidence = int(min_confidence)
 
 
-json_attr = {"table_name", "transaction_column", "item_column"}
+json_attr = {"table_name", "transaction_column", "item_column", "min_support", "min_confidence"}
 
 
 def prepare_data_from_json(json_data):
@@ -23,7 +24,7 @@ def prepare_data_from_json(json_data):
         keys_list.add(key)
     if json_attr != keys_list:
         raise ValueError("Bad json")
-    return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"])
+    return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"], json_data["min_support"], json_data["min_confidence"])
 
 
 class TrieNode(object):
@@ -1238,8 +1239,12 @@ cur = con.cursor()
 # print(cur.fetchall())
 
 
-json_data = '{ "table_name":"million_data_table", "transaction_column":"who", "item_column":"what"}'
-dataset = prepare_data_from_json(json_data)
+json_data = '{ "table_name":"million_data_table", ' \
+            '"transaction_column":"who", ' \
+            '"item_column":"what",' \
+            '"min_support": 3,' \
+            '"min_confidence": 5}'
+user_data = prepare_data_from_json(json_data)
 transactions = {}
 transaction_to_int_dict = dict()
 cur.execute('''SELECT * FROM iter1_test_table''')
@@ -1259,7 +1264,7 @@ con.commit()
 con.close()
 print(transactions)
 # print(data)
-frequent, a_rules = run(transactions, 3, 5)
+frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
 print(len(frequent))
 print(frequent)
 # print([prepare_result(frequent, a_rules)])

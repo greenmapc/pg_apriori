@@ -11,13 +11,16 @@ $$
 
 
     class Data:
-        def __init__(self, table_name, transaction_column, item_column):
+        def __init__(self, table_name, transaction_column, item_column, min_support=50, min_confidence=50):
             self.tale_name = table_name
             self.transaction_column = transaction_column
             self.item_column = item_column
+            self.min_support = int(min_support)
+            self.min_confidence = int(min_confidence)
 
 
-    json_attr = {"table_name", "transaction_column", "item_column"}
+
+    json_attr = {"table_name", "transaction_column", "item_column", "min_support", "min_confidence"}
 
 
     def prepare_data_from_json(json_data):
@@ -27,7 +30,7 @@ $$
             keys_list.add(key)
         if json_attr != keys_list:
             raise ValueError("Bad json")
-        return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"])
+        return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"], json_data["min_support"], json_data["min_confidence"])
 
 
     class TrieNode(object):
@@ -483,11 +486,11 @@ $$
         return support_table_name, rules_table_name
 
 
-    dataset = prepare_data_from_json(json_data)
+    user_data = prepare_data_from_json(json_data)
     transactions = {}
-    for row in plpy.cursor("select * from " + dataset.tale_name):
-        item_column = dataset.item_column
-        transaction_column = dataset.transaction_column
+    for row in plpy.cursor("select * from " + user_data.tale_name):
+        item_column = user_data.item_column
+        transaction_column = user_data.transaction_column
         if not row[transaction_column] in transactions:
             new_list = []
             new_list.append(row[item_column])
@@ -495,7 +498,7 @@ $$
         else:
             transactions[row[transaction_column]].append(row[item_column])
     plpy.notice(transactions)
-    frequent, a_rules = run(transactions, 3, 5)
+    frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
     return [prepare_result(frequent, a_rules)]
 
 
