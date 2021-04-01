@@ -433,7 +433,7 @@ $$
     from datetime import datetime
 
 
-    def create_tmp_support_table(result_data):
+    def create_tmp_support_table(result_data, transactions_num):
         dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
         result_table_name = "pg_apriori_support_" + dt_string
         create_table_query = "CREATE TABLE " + result_table_name + \
@@ -452,7 +452,7 @@ $$
             if isinstance(item[0], tuple):
                 item = list(item[0])
             item_string = list(map(lambda r: str(r), item))
-            plpy.execute(insert_table_query % (item_string, support))
+            plpy.execute(insert_table_query % (item_string, support / transactions_num))
         return result_table_name
 
 
@@ -480,8 +480,8 @@ $$
         return result_table_name
 
 
-    def prepare_result(support_result, rules):
-        support_table_name = create_tmp_support_table(support_result)
+    def prepare_result(support_result, rules, transactions_num):
+        support_table_name = create_tmp_support_table(support_result, transactions_num)
         rules_table_name = create_tmp_rule_table(rules)
         return support_table_name, rules_table_name
 
@@ -499,7 +499,7 @@ $$
             transactions[row[transaction_column]].append(row[item_column])
     plpy.notice(transactions)
     frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
-    return [prepare_result(frequent, a_rules)]
+    return [prepare_result(frequent, a_rules, len(transactions.keys()))]
 
 
 $$

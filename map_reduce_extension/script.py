@@ -381,6 +381,7 @@ def generate_association_rules(f_itemsets, confidence):
 
 def run(dataset, support_in_percent, confidence_in_percent):
     support = (support_in_percent * len(dataset) / 100)
+    print(support)
 
     for key, transaction in dataset.items():
         dataset[key] = sorted(transaction)
@@ -430,7 +431,7 @@ def run(dataset, support_in_percent, confidence_in_percent):
 from datetime import datetime
 
 
-def create_tmp_support_table(result_data):
+def create_tmp_support_table(result_data, transactions_num):
     dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
     result_table_name = "pg_apriori_support_" + dt_string
     create_table_query = "CREATE TABLE " + result_table_name + \
@@ -451,7 +452,7 @@ def create_tmp_support_table(result_data):
             item = list(item[0])
         item_string = list(map(lambda r: str(r), item))
         # plpy.execute(insert_table_query % (item_string, support))
-        print(insert_table_query % (item_string, support))
+        print(insert_table_query % (item_string, support / transactions_num))
     return result_table_name
 
 
@@ -482,8 +483,8 @@ def create_tmp_rule_table(result_data):
     return result_table_name
 
 
-def prepare_result(support_result, rules):
-    support_table_name = create_tmp_support_table(support_result)
+def prepare_result(support_result, rules, transactions_num):
+    support_table_name = create_tmp_support_table(support_result, transactions_num)
     rules_table_name = create_tmp_rule_table(rules)
     return support_table_name, rules_table_name
 
@@ -1267,7 +1268,7 @@ print(transactions)
 frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
 print(len(frequent))
 print(frequent)
-# print([prepare_result(frequent, a_rules)])
+print([prepare_result(frequent, a_rules, len(transactions.keys()))])
 
 # create_tmp_support_table([([('10001', 'New York')], 48), (['HISPANIC'], 161), (['MBE'], 644), (['New York'], 129), (['WBE'], 46)])
 extension_data = {'0': ['LBE', '11204', 'Brooklyn'], '1': ['BLACK', 'Cambria Heights', '11411', 'WBE', 'MBE'],
