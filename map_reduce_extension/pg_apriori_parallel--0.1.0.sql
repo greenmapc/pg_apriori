@@ -357,29 +357,33 @@ $$
 
     def generate_association_rules(f_itemsets, confidence):
         hash_map = {}
-        sorted_itemsets = []
         for itemset in f_itemsets:
-            arr = sorted(itemset[0])
-            sorted_itemsets.append((arr, itemset[1]))
-        for itemset in sorted_itemsets:
-            hash_map[tuple(itemset[0])] = itemset[1]
+            value = itemset[1]
+            if isinstance(itemset[0][0], tuple):
+                itemset = itemset[0][0]
+            else:
+                itemset = tuple(itemset[0])
+            hash_map[itemset] = value
 
         a_rules = []
-        for itemset in sorted_itemsets:
-            length = len(itemset[0])
+        for itemset in f_itemsets:
+            if isinstance(itemset[0][0], tuple):
+                itemset = itemset[0][0]
+            else:
+                itemset = itemset[0]
+            length = len(itemset)
             if length == 1:
                 continue
 
-            union_support = hash_map[tuple(itemset[0])]
+            union_support = hash_map[itemset]
             for i in range(1, length):
-
-                lefts = map(list, itertools.combinations(itemset[0], i))
+                lefts = map(list, itertools.combinations(itemset, i))
                 for left in lefts:
                     if not tuple(left) in hash_map:
                         continue
                     conf = 100.0 * union_support / hash_map[tuple(left)]
                     if conf >= confidence:
-                        a_rules.append([left, list(set(itemset[0]) - set(left)), conf])
+                        a_rules.append([left, list(set(itemset) - set(left)), conf])
         return a_rules
 
 
@@ -452,7 +456,7 @@ $$
             if isinstance(item[0], tuple):
                 item = list(item[0])
             item_string = list(map(lambda r: str(r), item))
-            plpy.execute(insert_table_query % (item_string, support / transactions_num))
+            plpy.execute(insert_table_query % (item_string, support / transactions_num * 100))
         return result_table_name
 
 
