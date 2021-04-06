@@ -2,8 +2,8 @@
 # dataset = load_data('million_data.csv')
 import timeit
 
-from mapreduce_apriori.apriori import run
-from mapreduce_apriori.datasets_generator import generate_dataset
+from mapreduce__trie_apriori.apriori import run
+from mapreduce__trie_apriori.datasets_generator import generate_dataset
 from naive_apriori.apriori import naive_apriori_run
 
 dataset = generate_dataset(100000, 100000)

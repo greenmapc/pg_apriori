@@ -1,4 +1,4 @@
-from mapreduce_apriori.sep.apriori import load_data
+from mapreduce__trie_apriori.sep.apriori import load_data
 
 dataset = load_data('million_data.csv')
 

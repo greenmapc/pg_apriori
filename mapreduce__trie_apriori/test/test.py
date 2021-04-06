@@ -1,6 +1,6 @@
-from map_reduce_trie_extension import script
-from map_reduce_trie_extension.script import run
-from mapreduce_apriori.test import parameters
+from extension_map_reduce_trie import script
+from extension_map_reduce_trie.script import run
+from mapreduce__trie_apriori.test import parameters
 from naive_apriori.apriori import naive_apriori_run
 
 simple_dataset = {0: ['LBE', '11204', 'Brooklyn'], 1: ['BLACK', 'Cambria Heights', '11411', 'WBE', 'MBE'],
