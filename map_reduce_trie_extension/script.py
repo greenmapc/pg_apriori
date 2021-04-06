@@ -353,29 +353,33 @@ def generate_k_subsets(dataset, length):
 
 def generate_association_rules(f_itemsets, confidence):
     hash_map = {}
-    sorted_itemsets = []
     for itemset in f_itemsets:
-        arr = sorted(itemset[0])
-        sorted_itemsets.append((arr, itemset[1]))
-    for itemset in sorted_itemsets:
-        hash_map[tuple(itemset[0])] = itemset[1]
+        value = itemset[1]
+        if isinstance(itemset[0][0], tuple):
+            itemset = itemset[0][0]
+        else:
+            itemset = tuple(itemset[0])
+        hash_map[itemset] = value
 
     a_rules = []
-    for itemset in sorted_itemsets:
-        length = len(itemset[0])
+    for itemset in f_itemsets:
+        if isinstance(itemset[0][0], tuple):
+            itemset = itemset[0][0]
+        else:
+            itemset = itemset[0]
+        length = len(itemset)
         if length == 1:
             continue
 
-        union_support = hash_map[tuple(itemset[0])]
+        union_support = hash_map[itemset]
         for i in range(1, length):
-
-            lefts = map(list, itertools.combinations(itemset[0], i))
+            lefts = map(list, itertools.combinations(itemset, i))
             for left in lefts:
                 if not tuple(left) in hash_map:
                     continue
                 conf = 100.0 * union_support / hash_map[tuple(left)]
                 if conf >= confidence:
-                    a_rules.append([left, list(set(itemset[0]) - set(left)), conf])
+                    a_rules.append([left, list(set(itemset) - set(left)), conf])
     return a_rules
 
 
@@ -1265,10 +1269,13 @@ con.commit()
 con.close()
 print(transactions)
 # print(data)
-frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
-print(len(frequent))
-print(frequent)
-print([prepare_result(frequent, a_rules, len(transactions.keys()))])
+# frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
+# print("---------------------- result ----------------------------")
+# print(len(frequent))
+# print(len(a_rules))
+# print(frequent)
+# print(a_rules)
+# print([prepare_result(frequent, a_rules, len(transactions.keys()))])
 
 # create_tmp_support_table([([('10001', 'New York')], 48), (['HISPANIC'], 161), (['MBE'], 644), (['New York'], 129), (['WBE'], 46)])
 extension_data = {'0': ['LBE', '11204', 'Brooklyn'], '1': ['BLACK', 'Cambria Heights', '11411', 'WBE', 'MBE'],
@@ -1984,6 +1991,12 @@ extension_data = {'0': ['LBE', '11204', 'Brooklyn'], '1': ['BLACK', 'Cambria Hei
                                                         'WBE', 'New York'],
  '1416': ['11580', 'ASIAN', 'MBE', 'Valley Stream'], '1417': ['Brooklyn', 'BLACK', '11214', 'MBE'],
  '1418': ['LBE', '10016', 'New York'], '1419': ['10002', 'New York', 'ASIAN', 'MBE']}
-print(transactions == extension_data)
+# print(transactions == extension_data)
 
 
+
+# todo привести в порядок script
+
+a = [(['10001'], 48), (['ASIAN'], 287), (['BLACK'], 427), (['Bronx'], 113), (['Brooklyn'], 216), (['HISPANIC'], 233), (['LBE'], 77), (['MBE'], 953), (['NON-MINORITY'], 426), (['New York'], 419), (['WBE'], 678), ([('10001', 'New York')], 48), ([('ASIAN', 'MBE')], 284), ([('ASIAN', 'New York')], 86), ([('ASIAN', 'WBE')], 54), ([('BLACK', 'Bronx')], 59), ([('BLACK', 'Brooklyn')], 101), ([('BLACK', 'MBE')], 427), ([('BLACK', 'New York')], 82), ([('BLACK', 'WBE')], 116), ([('Bronx', 'MBE')], 101), ([('Brooklyn', 'MBE')], 160), ([('Brooklyn', 'NON-MINORITY')], 50), ([('Brooklyn', 'WBE')], 89), ([('HISPANIC', 'MBE')], 233), ([('HISPANIC', 'New York')], 72), ([('HISPANIC', 'WBE')], 67), ([('LBE', 'MBE')], 45), ([('MBE', 'New York')], 241), ([('MBE', 'WBE')], 240), ([('NON-MINORITY', 'New York')], 168), ([('NON-MINORITY', 'WBE')], 426), ([('New York', 'WBE')], 249), ([('ASIAN', 'MBE', 'New York')], 85), ([('ASIAN', 'MBE', 'WBE')], 51), ([('BLACK', 'Bronx', 'MBE')], 59), ([('BLACK', 'Brooklyn', 'MBE')], 101), ([('BLACK', 'MBE', 'New York')], 82), ([('BLACK', 'MBE', 'WBE')], 116), ([('Brooklyn', 'NON-MINORITY', 'WBE')], 50), ([('HISPANIC', 'MBE', 'New York')], 72), ([('HISPANIC', 'MBE', 'WBE')], 67), ([('MBE', 'New York', 'WBE')], 75), ([('NON-MINORITY', 'New York', 'WBE')], 168)]
+b = generate_association_rules(a, user_data.min_confidence)
+print(b)
