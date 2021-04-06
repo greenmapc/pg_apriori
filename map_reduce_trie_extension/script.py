@@ -24,7 +24,8 @@ def prepare_data_from_json(json_data):
         keys_list.add(key)
     if json_attr != keys_list:
         raise ValueError("Bad json")
-    return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"], json_data["min_support"], json_data["min_confidence"])
+    return Data(json_data["table_name"], json_data["transaction_column"], json_data["item_column"],
+                json_data["min_support"], json_data["min_confidence"])
 
 
 class TrieNode(object):
@@ -492,38 +493,42 @@ def prepare_result(support_result, rules, transactions_num):
     rules_table_name = create_tmp_rule_table(rules)
     return support_table_name, rules_table_name
 
+
 import psycopg2
 
-con = psycopg2.connect(database="diploma", user="postgres", password="postgres", host="127.0.0.1", port="5432")
-print("Database opened successfully")
 
-cur = con.cursor()
+def run_with_postgres():
+    con = psycopg2.connect(database="diploma", user="postgres", password="postgres", host="127.0.0.1", port="5432")
+    print("Database opened successfully")
 
-# print(cur.fetchall())
+    cur = con.cursor()
 
-json_data = '{ "table_name":"million_data_table", ' \
-            '"transaction_column":"who", ' \
-            '"item_column":"what",' \
-            '"min_support": 3,' \
-            '"min_confidence": 5}'
-user_data = prepare_data_from_json(json_data)
-transactions = {}
-transaction_to_int_dict = dict()
-cur.execute('''SELECT * FROM iter1_test_table''')
-for row in cur.fetchall():
-    item_column = 1
-    transaction_column = 0
-    if not row[transaction_column] in transactions:
-        new_list = []
-        new_list.append(row[item_column])
-        transactions[row[transaction_column]] = new_list
-    else:
-        transactions[row[transaction_column]].append(row[item_column])
+    # print(cur.fetchall())
+
+    json_data = '{ "table_name":"million_data_table", ' \
+                '"transaction_column":"who", ' \
+                '"item_column":"what",' \
+                '"min_support": 3,' \
+                '"min_confidence": 5}'
+    user_data = prepare_data_from_json(json_data)
+    transactions = {}
+    cur.execute('''SELECT * FROM iter1_test_table''')
+    for row in cur.fetchall():
+        item_column = 1
+        transaction_column = 0
+        if not row[transaction_column] in transactions:
+            new_list = []
+            new_list.append(row[item_column])
+            transactions[row[transaction_column]] = new_list
+        else:
+            transactions[row[transaction_column]].append(row[item_column])
+
+    con.commit()
+    con.close()
+    print(transactions)
+    frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
+    prepare_result(frequent, a_rules, len(transactions.keys()))
 
 
-
-con.commit()
-con.close()
-print(transactions)
-frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
-prepare_result(frequent, a_rules, len(transactions.keys()))
+if __name__ == '__main__':
+    run_with_postgres()

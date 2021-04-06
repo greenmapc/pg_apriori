@@ -3,8 +3,6 @@ import multiprocessing
 import timeit
 from multiprocessing import Process
 
-from mapreduce_apriori.sep.trie import binary_search
-
 
 class TrieNode(object):
     def __init__(self, item, depth, items):
@@ -203,20 +201,20 @@ def reduce_function(processes_size, shuffle_result, min_support):
     return reduce_result
 
 
-def convert_reduce_result(reduce_result):
+def convert_reduce_result(reduce_result, transactions_num):
     result = []
     while not reduce_result.empty():
         current = reduce_result.get()
         for item, val in current.items():
-            result.append(([item], val))
+            result.append(([item], val / transactions_num))
     return result
 
 
 def find_frequent_one(dataset, support_cnt):
-    def map(dataset, map_result, left_border, right_border):
+    def map(dataset, map_result):
         result = {}
-        for i in range(left_border, right_border):
-            for item in dataset[i]:
+        for key, values in dataset.items():
+            for item in values:
                 if item in result:
                     result[item] += 1
                 else:
@@ -227,19 +225,10 @@ def find_frequent_one(dataset, support_cnt):
         map_start = timeit.default_timer()
         map_result = multiprocessing.Manager().Queue()
         jobs = []
-        left_border = 0
-        dataset_len = len(dataset)
-        step = int(dataset_len / processes_size)
-        right_border = step
+        separated_dataset = separate_data_for_processes(processes_size, dataset)
         for i in range(processes_size):
             j = Process(target=map,
-                        args=(dataset, map_result, left_border, right_border))
-            print("run map with left " + str(left_border) + " and right " + str(right_border))
-            left_border += step
-            if j == processes_size - 1:
-                right_border = dataset_len
-            else:
-                right_border += step
+                        args=(separated_dataset[i], map_result))
             jobs.append(j)
             j.start()
 
@@ -262,14 +251,14 @@ def find_frequent_one(dataset, support_cnt):
     reduce_result = reduce_function(processes_size, shuffle_result, support_cnt)
     print("Reduce for one frequent function finished")
 
-    result = convert_reduce_result(reduce_result)
+    result = convert_reduce_result(reduce_result, len(dataset))
 
     stop = timeit.default_timer()
     print("MapReduce for one frequent itemsets finished", stop - start)
     return result
 
 
-def find_frequent_k(subset, trie, support_cnt):
+def find_frequent_k(subset, trie, support_cnt, transactions_num):
     def map(trie, subsets, map_result, left_border, right_border):
         def count_support(node, target, iterator):
             if node.items == target:
@@ -331,7 +320,7 @@ def find_frequent_k(subset, trie, support_cnt):
     if shuffle_result:
         reduce_result = reduce_function(processes_size, shuffle_result, support_cnt)
         print("Reduce for k frequent function finished")
-        result = convert_reduce_result(reduce_result)
+        result = convert_reduce_result(reduce_result, transactions_num)
     else:
         result = []
 
@@ -349,29 +338,33 @@ def generate_k_subsets(dataset, length):
 
 def generate_association_rules(f_itemsets, confidence):
     hash_map = {}
-    sorted_itemsets = []
     for itemset in f_itemsets:
-        arr = sorted(itemset[0])
-        sorted_itemsets.append((arr, itemset[1]))
-    for itemset in sorted_itemsets:
-        hash_map[tuple(itemset[0])] = itemset[1]
+        value = itemset[1]
+        if isinstance(itemset[0][0], tuple):
+            itemset = itemset[0][0]
+        else:
+            itemset = tuple(itemset[0])
+        hash_map[itemset] = value
 
     a_rules = []
-    for itemset in sorted_itemsets:
-        length = len(itemset[0])
+    for itemset in f_itemsets:
+        if isinstance(itemset[0][0], tuple):
+            itemset = itemset[0][0]
+        else:
+            itemset = itemset[0]
+        length = len(itemset)
         if length == 1:
             continue
 
-        union_support = hash_map[tuple(itemset[0])]
+        union_support = hash_map[itemset]
         for i in range(1, length):
-
-            lefts = map(list, itertools.combinations(itemset[0], i))
+            lefts = map(list, itertools.combinations(itemset, i))
             for left in lefts:
                 if not tuple(left) in hash_map:
                     continue
                 conf = 100.0 * union_support / hash_map[tuple(left)]
                 if conf >= confidence:
-                    a_rules.append([left, list(set(itemset[0]) - set(left)), conf])
+                    a_rules.append([left, list(set(itemset) - set(left)), conf])
     return a_rules
 
 
@@ -402,7 +395,7 @@ def run(dataset, support_in_percent, confidence_in_percent):
         k_subsets = generate_k_subsets(dataset, k)
         print("Subsets generated")
 
-        frequent_itemsets_k = find_frequent_k(k_subsets, current_candidates_tree, support)
+        frequent_itemsets_k = find_frequent_k(k_subsets, current_candidates_tree, support, len(dataset))
         print("Frequent items with length %s generated" % k)
 
         frequent_itemsets_k = sorted(frequent_itemsets_k, key=lambda tup: tup[0])
@@ -421,5 +414,9 @@ def run(dataset, support_in_percent, confidence_in_percent):
     a_rules = generate_association_rules(frequent_itemsets, confidence_in_percent)
     print(frequent_itemsets)
     print(len(frequent_itemsets))
+    print('rules')
     print(a_rules)
     return frequent_itemsets
+
+# a = [(['ASIAN'], 0.2692307692307692), (['BLACK'], 0.3269230769230769), (['Bronx'], 0.11538461538461539), (['HISPANIC'], 0.15384615384615385), (['LBE'], 0.1346153846153846), (['MBE'], 0.75), (['NON-MINORITY'], 0.17307692307692307), (['New York'], 0.3269230769230769), (['WBE'], 0.38461538461538464), ([('ASIAN', 'MBE')], 0.2692307692307692), ([('ASIAN', 'New York')], 0.11538461538461539), ([('BLACK', 'MBE')], 0.3269230769230769), ([('Bronx', 'MBE')], 0.11538461538461539), ([('HISPANIC', 'MBE')], 0.15384615384615385), ([('MBE', 'New York')], 0.25), ([('MBE', 'WBE')], 0.19230769230769232), ([('NON-MINORITY', 'WBE')], 0.17307692307692307), ([('New York', 'WBE')], 0.17307692307692307), ([('ASIAN', 'MBE', 'New York')], 0.11538461538461539), ([('MBE', 'New York', 'WBE')], 0.11538461538461539)]
+# generate_association_rules(a, parameters.CONFIDENCE)
