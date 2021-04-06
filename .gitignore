@@ -8,8 +8,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-mapreduce_apriori/*.txt
-mapreduce_apriori/*.csv
+data/*.txt
+data/*.csv
 build/
 develop-eggs/
 dist/
