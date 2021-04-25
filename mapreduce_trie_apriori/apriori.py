@@ -36,26 +36,6 @@ def binary_search(array, target):
             return array[i]
     return None
 
-
-def find_frequent_itemsets(node, support):
-    if node.word_finished:
-        if node.support < support:
-            node.invalid = True
-            return []
-        else:
-            return [(node.items, node.support)]
-    else:
-        result = []
-        for i in range(len(node.children) - 1, -1, -1):
-            nodes = find_frequent_itemsets(node.children[i], support)
-            result.extend(nodes)
-            if node.children[i].invalid:
-                node.children.remove(node.children[i])
-        if len(node.children) == 0:
-            node.invalid = True
-        return result
-
-
 def count_support(node, target, iterator):
     if node.items == target:
         node.support += 1

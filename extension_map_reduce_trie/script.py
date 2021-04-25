@@ -429,7 +429,12 @@ def run(dataset, support_in_percent, confidence_in_percent):
 
         k += 1
 
+    print(len(frequent_itemsets))
+    print(frequent_itemsets)
     a_rules = generate_association_rules(frequent_itemsets, confidence_in_percent)
+
+    print(len(a_rules))
+    print(a_rules)
     return frequent_itemsets, a_rules
 
 
