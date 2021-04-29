@@ -36,6 +36,7 @@ def binary_search(array, target):
             return array[i]
     return None
 
+
 def count_support(node, target, iterator):
     if node.items == target:
         node.support += 1
@@ -107,27 +108,22 @@ def separate_data_for_processes(processes_size, dataset):
     separate_start = timeit.default_timer()
     datasets = []
     step = len(dataset) // processes_size
-    border = step
+    border_last_full = step * (processes_size - 1)
     current_data = {}
-    item_num = 0
-    if len(dataset) <= border:
-        last_chunk = True
-    else:
-        last_chunk = False
+    counter = 0
     for i in dataset.items():
-        if (item_num == border and not last_chunk) or item_num == len(dataset) - 1:
+        if 0 < counter <= border_last_full and counter % step == 0:
             datasets.append(current_data)
-            if last_chunk:
-                current_data[i[0]] = i[1]
-            if len(datasets) == processes_size - 1:
-                last_chunk = True
             current_data = {}
-            border += step
         current_data[i[0]] = i[1]
-        item_num += 1
-    if current_data:
-        datasets.append(current_data)
+        counter += 1
+    datasets.append(current_data)
     separate_stop = timeit.default_timer()
+
+    if len(datasets) < processes_size:
+        current_length = len(datasets)
+        for i in range(processes_size - current_length):
+            datasets.append({})
     print("Separate dataset time ", separate_stop - separate_start)
 
     return datasets
@@ -273,7 +269,7 @@ def find_frequent_k(subset, trie, support_cnt, transactions_num):
                         args=(trie, subsets, map_result, left_border, right_border))
             print("run map with left " + str(left_border) + " and right " + str(right_border))
             left_border += step
-            if j == processes_size - 1:
+            if i == processes_size - 2:
                 right_border = len(subsets)
             else:
                 right_border += step
@@ -305,6 +301,7 @@ def find_frequent_k(subset, trie, support_cnt, transactions_num):
         result = []
 
     stop = timeit.default_timer()
+    print(result)
     print("MapReduce for k frequent itemsets finished", stop - start)
     return result
 
