@@ -48,14 +48,15 @@ def count_support(node, target, iterator):
 
 
 def add(root, items):
+    print(items)
     current_node = root
     for item in items:
+        print(item)
         found_node = binary_search(current_node.children, item)
         if found_node is not None:
             current_node = found_node
         else:
             new_node = TrieNode(item, current_node.depth + 1, current_node.items + [item])
-            # todo can add sorting
             current_node.children.append(new_node)
             current_node = new_node
     # last
@@ -130,6 +131,15 @@ def separate_data_for_processes(processes_size, dataset):
     return datasets
 
 
+def convert_reduce_result(reduce_result, transactions_num):
+    result = []
+    while not reduce_result.empty():
+        current = reduce_result.get()
+        for item, val in current.items():
+            result.append(([item], val / transactions_num))
+    return result
+
+
 def shuffle_function(map_result):
     shuffle_start = timeit.default_timer()
     shuffle_result = dict()
@@ -148,6 +158,7 @@ def shuffle_function(map_result):
 
 def reduce_function(processes_size, shuffle_result, min_support):
     print(min_support)
+
     def reduce(map_result, min_support, reduce_result):
         result = dict()
         for key, value in map_result.items():
@@ -155,15 +166,14 @@ def reduce_function(processes_size, shuffle_result, min_support):
             for term in value:
                 current_count += term
             print(current_count, " REDUCE ", key)
+
             if current_count >= min_support:
-                print("will be result" , key)
+                print("will be result", key)
                 result[key] = current_count
         reduce_result.put(result)
 
     reduce_start = timeit.default_timer()
     separated_dataset = separate_data_for_processes(processes_size, shuffle_result)
-    print(separated_dataset)
-    print(shuffle_result)
 
     reduce_result = multiprocessing.Manager().Queue()
     jobs = []
@@ -181,34 +191,34 @@ def reduce_function(processes_size, shuffle_result, min_support):
     return reduce_result
 
 
-def convert_reduce_result(reduce_result, transactions_num):
-    result = []
-    while not reduce_result.empty():
-        current = reduce_result.get()
-        for item, val in current.items():
-            result.append(([item], val / transactions_num))
-    return result
-
-
 def find_frequent_one(dataset, support_cnt):
-    def map(dataset, map_result):
+    def map(dataset, map_result, left, right):
         result = {}
-        for key, values in dataset.items():
-            for item in values:
+        for i in range(left, right):
+            for item in dataset[i]:
                 if item in result:
                     result[item] += 1
                 else:
                     result[item] = 1
+
+        print("MAP RES: ", result)
         map_result.put(result)
 
     def find_frequent_map(processes_size, dataset):
         map_start = timeit.default_timer()
         map_result = multiprocessing.Manager().Queue()
         jobs = []
-        separated_dataset = separate_data_for_processes(processes_size, dataset)
+        left_border = 0
+        step = len(dataset) // processes_size
+        right_border = step
         for i in range(processes_size):
+            if i == processes_size - 1:
+                right_border = len(dataset) - left_border + 1
             j = Process(target=map,
-                        args=(separated_dataset[i], map_result))
+                        args=(dataset, map_result, left_border, right_border))
+            print("start map with left = %s and right = %s" % (left_border, right_border))
+            left_border = right_border
+            right_border += step
             jobs.append(j)
             j.start()
 
@@ -232,9 +242,11 @@ def find_frequent_one(dataset, support_cnt):
     reduce_result = reduce_function(processes_size, shuffle_result, support_cnt)
     print("Reduce for one frequent function finished")
 
-    result = convert_reduce_result(reduce_result, len(dataset))
+    # result = convert_reduce_result(reduce_result, len(dataset))
 
     stop = timeit.default_timer()
+    result = convert_reduce_result(reduce_result, len(dataset))
+
     print("MapReduce for one frequent itemsets finished", stop - start)
     return result
 
@@ -313,7 +325,7 @@ def find_frequent_k(subset, trie, support_cnt, transactions_num):
 
 def generate_k_subsets(dataset, length):
     subsets = []
-    for row in dataset.values():
+    for row in dataset:
         subsets.extend(map(list, sorted(itertools.combinations(row, length))))
     return subsets
 
@@ -353,8 +365,8 @@ def generate_association_rules(f_itemsets, confidence):
 def run(dataset, support_in_percent, confidence_in_percent):
     support = (support_in_percent * len(dataset) / 100)
 
-    for key, transaction in dataset.items():
-        dataset[key] = sorted(transaction)
+    for i in range(len(dataset)):
+        dataset[i] = sorted(dataset[i])
 
     frequent_one = find_frequent_one(dataset, support)
     frequent_one = sorted(frequent_one, key=lambda tup: tup[0])
@@ -362,10 +374,11 @@ def run(dataset, support_in_percent, confidence_in_percent):
 
     print("Founded frequent items with length 1")
     print(frequent_one)
-
+    print("--------------------")
     current_candidates_tree = TrieNode(None, 0, [])
     for candidate in frequent_one:
-        add(current_candidates_tree, candidate[0])
+        add(current_candidates_tree, [candidate])
+
     print("trie:")
     dfs(set(), current_candidates_tree)
     k = 2
@@ -388,10 +401,8 @@ def run(dataset, support_in_percent, confidence_in_percent):
         # build trie with new frequent itemsets for new generation
         current_candidates_tree = TrieNode(None, 0, [])
         for candidate in frequent_itemsets_k:
-            print("-------------------")
-            print(candidate[0][0])
             add(current_candidates_tree, list(candidate[0][0]))
-        dfs(set(), current_candidates_tree)
+        # dfs(set(), current_candidates_tree)
         print("New trie generated")
 
         k += 1
@@ -401,10 +412,35 @@ def run(dataset, support_in_percent, confidence_in_percent):
     print(len(frequent_itemsets))
     print('rules')
     print(a_rules)
-    return frequent_itemsets
+    return frequent_itemsets, a_rules
 
 
-simple_dataset = {0 : ['eggs', 'bacon', 'soup'],
-                  1: ['eggs', 'bacon', 'apple'],
-                  2 :['soup', 'bacon', 'banana']}
-run(simple_dataset, 10, 0)
+# a = [(['ASIAN'], 0.2692307692307692), (['BLACK'], 0.3269230769230769), (['Bronx'], 0.11538461538461539), (['HISPANIC'], 0.15384615384615385), (['LBE'], 0.1346153846153846), (['MBE'], 0.75), (['NON-MINORITY'], 0.17307692307692307), (['New York'], 0.3269230769230769), (['WBE'], 0.38461538461538464), ([('ASIAN', 'MBE')], 0.2692307692307692), ([('ASIAN', 'New York')], 0.11538461538461539), ([('BLACK', 'MBE')], 0.3269230769230769), ([('Bronx', 'MBE')], 0.11538461538461539), ([('HISPANIC', 'MBE')], 0.15384615384615385), ([('MBE', 'New York')], 0.25), ([('MBE', 'WBE')], 0.19230769230769232), ([('NON-MINORITY', 'WBE')], 0.17307692307692307), ([('New York', 'WBE')], 0.17307692307692307), ([('ASIAN', 'MBE', 'New York')], 0.11538461538461539), ([('MBE', 'New York', 'WBE')], 0.11538461538461539)]
+# generate_association_rules(a, parameters.CONFIDENCE)
+
+transactions = [['eggs', 'bacon', 'soup'],
+                ['eggs', 'bacon', 'apple'],
+                ['soup', 'bacon', 'banana']]
+frequent_items, rules = run(transactions, 0, 0)
+print(frequent_items)
+print(rules)
+
+# Separate dataset time  5.142999725649133e-06
+# Map time for one frequent 0.013218720999248035
+# Map for one frequent function finished
+# Shuffle time 0.0007920149992060033
+# Shuffle for one frequent function finished
+# {'bacon': [1, 2], 'eggs': [1, 1], 'soup': [1, 1], 'apple': [1], 'banana': [1]}
+# Separate dataset time  3.967999873566441e-06
+# [{'bacon': [1, 2], 'eggs': [1, 1]}, {'soup': [1, 1], 'apple': [1], 'banana': [1]}]
+# {'bacon': [1, 2], 'eggs': [1, 1], 'soup': [1, 1], 'apple': [1], 'banana': [1]}
+# 3  REDUCE  bacon
+# 2  REDUCE  eggs
+# 2  REDUCE  soup
+# 1  REDUCE  apple
+# 1  REDUCE  banana
+# reduce time  0.010320745000171883
+# Reduce for one frequent function finished
+# MapReduce for one frequent itemsets finished 0.025179706000017177
+# Founded frequent items with length 1
+# [(['apple'], 0.3333333333333333), (['bacon'], 1.0), (['banana'], 0.3333333333333333), (['eggs'], 0.6666666666666666), (['soup'], 0.6666666666666666)], 0.3333333333333333), (['bacon'], 1.0), (['banana'], 0.3333333333333333), (['eggs'], 0.6666666666666666), (['soup'], 0.6666666666666666)]
