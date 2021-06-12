@@ -1,4 +1,0 @@
-# test extension
-comment = 'python3 test calc plus op'
-default_version = '0.0.1'
-relocatable = true

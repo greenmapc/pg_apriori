@@ -1,4 +1,0 @@
-# test extension
-comment = 'create_temp_table_ext'
-default_version = '0.0.1'
-relocatable = true

@@ -1,4 +1,0 @@
-# test extension
-comment = 'apriori algorithm extension'
-default_version = '0.0.4'
-relocatable = true
