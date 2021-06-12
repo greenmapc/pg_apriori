@@ -481,16 +481,19 @@ $$
 
     user_data = prepare_data_from_json(json_data)
     transactions = {}
-    for row in plpy.cursor("select * from " + user_data.tale_name):
-        item_column = user_data.item_column
-        transaction_column = user_data.transaction_column
-        if not row[transaction_column] in transactions:
-            new_list = []
-            new_list.append(row[item_column])
-            transactions[row[transaction_column]] = new_list
-        else:
-            transactions[row[transaction_column]].append(row[item_column])
-    frequent, a_rules = run(list(transactions.values()), user_data.min_support, user_data.min_confidence)
+    counter = 0
+    item_column = user_data.item_column
+    transaction_column = user_data.transaction_column
+    query = "SELECT %s, array_agg(%s ORDER BY %s) as arr FROM %s GROUP BY %s" % (
+        plpy.quote_ident(transaction_column),
+        plpy.quote_ident(item_column),
+        plpy.quote_ident(item_column),
+        plpy.quote_ident(user_data.tale_name),
+        plpy.quote_ident(transaction_column))
+    for row in plpy.execute(query):
+        transactions[counter] = row["arr"]
+        counter += 1
+    frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
     plpy.notice(frequent)
     return [prepare_result(frequent, a_rules)]
 
