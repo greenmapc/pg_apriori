@@ -453,11 +453,10 @@ def create_tmp_support_table(result_data, transactions_num):
     print(create_table_query)
 
     for item, support in result_data:
-        if isinstance(item[0], tuple):
-            item = list(item[0])
-        item_string = list(map(lambda r: str(r), item))
+        if isinstance(item, tuple):
+            item = list(item)
         # plpy.execute(insert_table_query % (item_string, support))
-        print(insert_table_query % (item_string, support / transactions_num * 100))
+        print(insert_table_query % (item, support * 100))
     return result_table_name
 
 

@@ -210,7 +210,7 @@ $$
         return result
 
 
-    def find_frequent_one(dataset, support_cnt):
+    def find_frequent_one(dataset, support_cnt, processes_size):
         def map(dataset, map_result, left, right):
             map_start = timeit.default_timer()
             result = {}
@@ -250,7 +250,6 @@ $$
             # print("Map time for one frequent", map_stop - map_start)
             return map_result
 
-        processes_size = 2
         start = timeit.default_timer()
 
         map_result = find_frequent_map(processes_size, dataset)
@@ -263,7 +262,7 @@ $$
         print("MapReduce for one frequent itemsets finished", stop - start)
         return reduce_result
 
-    def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k):
+    def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k, processes_size):
         def map(transactions, map_result, t_left_border, t_right_border):
 
             def support_counter_with_iter_by_candidates(transaction, node, result):
@@ -316,7 +315,6 @@ $$
             print("Map step for find freq_k", map_stop - map_start)
             return map_result
 
-        processes_size = 2
         start = timeit.default_timer()
 
         map_result = find_frequent_map(processes_size, transactions)
@@ -368,11 +366,12 @@ $$
 
     def run(dataset, support_in_percent, confidence_in_percent):
         support = (support_in_percent * len(dataset) / 100)
+        processes_size = multiprocessing.cpu_count()
 
         for i in range(len(dataset)):
             dataset[i] = sorted(dataset[i])
 
-        frequent_one = list(find_frequent_one(dataset, support).items())
+        frequent_one = list(find_frequent_one(dataset, support, processes_size).items())
 
         frequent_one = sorted(frequent_one, key=lambda tup: tup[0])
         frequent_itemsets = frequent_one
@@ -401,7 +400,7 @@ $$
 
             start_freq_k = timeit.default_timer()
 
-            frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k)
+            frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k, processes_size)
 
             finish_found = timeit.default_timer()
 
@@ -450,10 +449,9 @@ $$
         plpy.execute(create_table_query)
 
         for item, support in result_data:
-            if isinstance(item[0], tuple):
-                item = list(item[0])
-            item_string = list(map(lambda r: str(r), item))
-            plpy.execute(insert_table_query % (item_string, support / transactions_num * 100))
+            if isinstance(item, tuple):
+                item = list(item)
+            plpy.execute(insert_table_query % (item, support * 100))
         return result_table_name
 
 
@@ -498,8 +496,8 @@ $$
             transactions[row[transaction_column]] = new_list
         else:
             transactions[row[transaction_column]].append(row[item_column])
-    plpy.notice(transactions)
     frequent, a_rules = run(list(transactions.values()), user_data.min_support, user_data.min_confidence)
+    plpy.notice(frequent)
     return [prepare_result(frequent, a_rules, len(transactions.keys()))]
 
 
