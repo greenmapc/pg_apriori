@@ -1,6 +1,10 @@
 # pg_apriori 
 Extension for generation of association rules
 
+## Version 1.0.0
+
+Extension based on apriori realization with trie and MapReduce for getting frequent items.
+
 ## Extension init 
 
 ``
