@@ -494,7 +494,6 @@ $$
         transactions[counter] = row["arr"]
         counter += 1
     frequent, a_rules = run(transactions, user_data.min_support, user_data.min_confidence)
-    plpy.notice(frequent)
     return [prepare_result(frequent, a_rules)]
 
 $$
