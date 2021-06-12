@@ -1,0 +1,4 @@
+# apriori generating association rules extension
+comment = 'apriori algorithm extension'
+default_version = '1.0.0'
+relocatable = true

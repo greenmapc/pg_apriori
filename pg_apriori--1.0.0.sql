@@ -1,10 +1,10 @@
-\echo Use "CREATE EXTENSION pg_apriori_parallel" to load this file. \quit
+\echo Use "CREATE EXTENSION pg_apriori" to load this file. \quit
 
-CREATE TYPE apriori_parallel_type AS (support_table VARCHAR, rules_table VARCHAR);
-CREATE OR REPLACE FUNCTION apriori_parallel(IN json_data VARCHAR) RETURNS SETOF apriori_parallel_type AS
+CREATE TYPE apriori_type AS (support_table VARCHAR, rules_table VARCHAR);
+CREATE OR REPLACE FUNCTION apriori(IN json_data VARCHAR) RETURNS SETOF apriori_type AS
 $$
-    import json
     import itertools
+    import json
     import multiprocessing
     import timeit
     from multiprocessing import Process
@@ -38,10 +38,8 @@ $$
             self.item = item
             self.depth = depth
             self.items = items
-            self.support = 0
             self.children = []
-            self.invalid = False
-            self.word_finished = False
+            self.is_list = False
 
 
     def list_binary_search(list, target):
@@ -57,6 +55,7 @@ $$
             if list[i] == target:
                 return list[i]
         return None
+
 
     def trie_binary_search(array, target):
         lower = 0
@@ -79,6 +78,7 @@ $$
             return array[lower]
         return None
 
+
     def add(root, items):
         current_node = root
         for item in items:
@@ -87,11 +87,11 @@ $$
                 current_node = found_node
             else:
                 new_node = TrieNode(item, current_node.depth + 1, current_node.items + [item])
-                # todo can add sorting
                 current_node.children.append(new_node)
                 current_node = new_node
         # last
-        current_node.word_finished = True
+        current_node.is_list = True
+
 
     def search_candidates(visited, node, new_trie_node, max_depth, size=0, edges=0):
         if node in visited:
@@ -113,7 +113,7 @@ $$
                     edges += 1
                 for new_child in children[j:]:
                     new_node = TrieNode(new_child.item, new_parent.depth + 1, new_parent.items + [new_child.item])
-                    new_node.word_finished = True
+                    new_node.is_list = True
                     new_parent.children.append(new_node)
                     size += 1
                     edges += 1
@@ -131,8 +131,8 @@ $$
 
         return size, edges
 
+
     def separate_data_for_processes(processes_size, dataset):
-        separate_start = timeit.default_timer()
         datasets = []
         step = len(dataset) // processes_size
         border_last_full = step * (processes_size - 1)
@@ -145,7 +145,6 @@ $$
             current_data[i[0]] = i[1]
             counter += 1
         datasets.append(current_data)
-        separate_stop = timeit.default_timer()
 
         if len(datasets) < processes_size:
             current_length = len(datasets)
@@ -180,7 +179,7 @@ $$
                     result[key] = value / transactions_num
             reduce_result.update(result)
             reduce_process_finish = timeit.default_timer()
-            # print("One process reduce time ", reduce_process_finish - reduce_process_start)
+            print("One process reduce time ", reduce_process_finish - reduce_process_start)
 
         reduce_start = timeit.default_timer()
         separated_dataset = separate_data_for_processes(processes_size, shuffle_result)
@@ -212,7 +211,6 @@ $$
 
     def find_frequent_one(dataset, support_cnt, processes_size):
         def map(dataset, map_result, left, right):
-            map_start = timeit.default_timer()
             result = {}
             for i in range(left, right):
                 for item in dataset[i]:
@@ -220,8 +218,6 @@ $$
                         result[item] += 1
                     else:
                         result[item] = 1
-            map_finish = timeit.default_timer()
-            # print("Time for 1proc map ", map_finish - map_start)
             map_result.put(result)
 
         def find_frequent_map(processes_size, dataset):
@@ -237,7 +233,6 @@ $$
 
                 j = Process(target=map,
                             args=(dataset, map_result, left_border, right_border))
-                # print("start map with left = %s and right = %s" % ( left_border, right_border))
                 left_border = right_border
                 right_border += step
                 jobs.append(j)
@@ -247,7 +242,7 @@ $$
                 job.join()
 
             map_stop = timeit.default_timer()
-            # print("Map time for one frequent", map_stop - map_start)
+            print("Map time for one frequent", map_stop - map_start)
             return map_result
 
         start = timeit.default_timer()
@@ -262,13 +257,14 @@ $$
         print("MapReduce for one frequent itemsets finished", stop - start)
         return reduce_result
 
+
     def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k, processes_size):
         def map(transactions, map_result, t_left_border, t_right_border):
 
             def support_counter_with_iter_by_candidates(transaction, node, result):
                 for child in node.children:
                     if list_binary_search(transaction, child.item):
-                        if child.word_finished:
+                        if child.is_list:
                             subset = tuple(child.items)
                             if subset in result.keys():
                                 result[subset] += 1
@@ -276,8 +272,6 @@ $$
                                 result[subset] = 1
                         else:
                             support_counter_with_iter_by_candidates(transaction, child, result)
-
-            start_direction = timeit.default_timer()
 
             result = {}
 
@@ -287,7 +281,6 @@ $$
                     continue
                 support_counter_with_iter_by_candidates(transaction, trie, result)
 
-            stop_direction = timeit.default_timer()
             map_result.put(result)
 
         def find_frequent_map(processes_size, transactions):
@@ -315,8 +308,6 @@ $$
             print("Map step for find freq_k", map_stop - map_start)
             return map_result
 
-        start = timeit.default_timer()
-
         map_result = find_frequent_map(processes_size, transactions)
 
         shuffle_result = shuffle_function(map_result)
@@ -326,8 +317,8 @@ $$
         else:
             result = {}
 
-        stop = timeit.default_timer()
         return result
+
 
     def generate_association_rules(f_itemsets, confidence):
         hash_map = {}
@@ -400,7 +391,8 @@ $$
 
             start_freq_k = timeit.default_timer()
 
-            frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k, processes_size)
+            frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k,
+                                                  processes_size)
 
             finish_found = timeit.default_timer()
 
@@ -420,11 +412,11 @@ $$
 
             finish_preparing = timeit.default_timer()
 
-            print("Preparing data for k = %s:" % k, finish_preparing - data_preparing_start)
+            print("Prepared data for k = %s:" % k, finish_preparing - data_preparing_start)
 
             k += 1
 
-        print("Founded frequent itemsets")
+        print("Found frequent itemsets")
         a_rules = generate_association_rules(frequent_itemsets, confidence_in_percent)
 
         return frequent_itemsets, a_rules
@@ -433,7 +425,7 @@ $$
     from datetime import datetime
 
 
-    def create_tmp_support_table(result_data, transactions_num):
+    def create_tmp_support_table(result_data):
         dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
         result_table_name = "pg_apriori_support_" + dt_string
         create_table_query = "CREATE TABLE " + result_table_name + \
@@ -451,6 +443,8 @@ $$
         for item, support in result_data:
             if isinstance(item, tuple):
                 item = list(item)
+            else:
+                item = [item]
             plpy.execute(insert_table_query % (item, support * 100))
         return result_table_name
 
@@ -479,8 +473,8 @@ $$
         return result_table_name
 
 
-    def prepare_result(support_result, rules, transactions_num):
-        support_table_name = create_tmp_support_table(support_result, transactions_num)
+    def prepare_result(support_result, rules):
+        support_table_name = create_tmp_support_table(support_result)
         rules_table_name = create_tmp_rule_table(rules)
         return support_table_name, rules_table_name
 
@@ -498,8 +492,7 @@ $$
             transactions[row[transaction_column]].append(row[item_column])
     frequent, a_rules = run(list(transactions.values()), user_data.min_support, user_data.min_confidence)
     plpy.notice(frequent)
-    return [prepare_result(frequent, a_rules, len(transactions.keys()))]
-
+    return [prepare_result(frequent, a_rules)]
 
 $$
 LANGUAGE 'plpython3u' VOLATILE;

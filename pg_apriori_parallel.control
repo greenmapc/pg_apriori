@@ -1,4 +1,0 @@
-# test extension
-comment = 'parallel apriori algorithm extension'
-default_version = '0.2.0'
-relocatable = true

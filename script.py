@@ -33,10 +33,8 @@ class TrieNode(object):
         self.item = item
         self.depth = depth
         self.items = items
-        self.support = 0
         self.children = []
-        self.invalid = False
-        self.word_finished = False
+        self.is_list = False
 
 
 def list_binary_search(list, target):
@@ -82,11 +80,10 @@ def add(root, items):
             current_node = found_node
         else:
             new_node = TrieNode(item, current_node.depth + 1, current_node.items + [item])
-            # todo can add sorting
             current_node.children.append(new_node)
             current_node = new_node
     # last
-    current_node.word_finished = True
+    current_node.is_list = True
 
 def search_candidates(visited, node, new_trie_node, max_depth, size=0, edges=0):
     if node in visited:
@@ -108,7 +105,7 @@ def search_candidates(visited, node, new_trie_node, max_depth, size=0, edges=0):
                 edges += 1
             for new_child in children[j:]:
                 new_node = TrieNode(new_child.item, new_parent.depth + 1, new_parent.items + [new_child.item])
-                new_node.word_finished = True
+                new_node.is_list = True
                 new_parent.children.append(new_node)
                 size += 1
                 edges += 1
@@ -127,7 +124,6 @@ def search_candidates(visited, node, new_trie_node, max_depth, size=0, edges=0):
     return size, edges
 
 def separate_data_for_processes(processes_size, dataset):
-    separate_start = timeit.default_timer()
     datasets = []
     step = len(dataset) // processes_size
     border_last_full = step * (processes_size - 1)
@@ -140,7 +136,6 @@ def separate_data_for_processes(processes_size, dataset):
         current_data[i[0]] = i[1]
         counter += 1
     datasets.append(current_data)
-    separate_stop = timeit.default_timer()
 
     if len(datasets) < processes_size:
         current_length = len(datasets)
@@ -175,7 +170,7 @@ def reduce_function(processes_size, shuffle_result, min_support, transactions_nu
                 result[key] = value / transactions_num
         reduce_result.update(result)
         reduce_process_finish = timeit.default_timer()
-        # print("One process reduce time ", reduce_process_finish - reduce_process_start)
+        print("One process reduce time ", reduce_process_finish - reduce_process_start)
 
     reduce_start = timeit.default_timer()
     separated_dataset = separate_data_for_processes(processes_size, shuffle_result)
@@ -195,19 +190,8 @@ def reduce_function(processes_size, shuffle_result, min_support, transactions_nu
     print("reduce time ", reduce_stop - reduce_start)
     return reduce_result
 
-
-def convert_reduce_result(reduce_result, transactions_num):
-    result = []
-    while not reduce_result.empty():
-        current = reduce_result.get()
-        for item, val in current.items():
-            result.append(([item], val / transactions_num))
-    return result
-
-
-def find_frequent_one(dataset, support_cnt):
+def find_frequent_one(dataset, support_cnt, processes_size):
     def map(dataset, map_result, left, right):
-        map_start = timeit.default_timer()
         result = {}
         for i in range(left, right):
             for item in dataset[i]:
@@ -215,8 +199,6 @@ def find_frequent_one(dataset, support_cnt):
                     result[item] += 1
                 else:
                     result[item] = 1
-        map_finish = timeit.default_timer()
-        # print("Time for 1proc map ", map_finish - map_start)
         map_result.put(result)
 
     def find_frequent_map(processes_size, dataset):
@@ -232,7 +214,6 @@ def find_frequent_one(dataset, support_cnt):
 
             j = Process(target=map,
                         args=(dataset, map_result, left_border, right_border))
-            # print("start map with left = %s and right = %s" % ( left_border, right_border))
             left_border = right_border
             right_border += step
             jobs.append(j)
@@ -242,10 +223,9 @@ def find_frequent_one(dataset, support_cnt):
             job.join()
 
         map_stop = timeit.default_timer()
-        # print("Map time for one frequent", map_stop - map_start)
+        print("Map time for one frequent", map_stop - map_start)
         return map_result
 
-    processes_size = 2
     start = timeit.default_timer()
 
     map_result = find_frequent_map(processes_size, dataset)
@@ -258,13 +238,13 @@ def find_frequent_one(dataset, support_cnt):
     print("MapReduce for one frequent itemsets finished", stop - start)
     return reduce_result
 
-def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k):
+def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k, processes_size):
     def map(transactions, map_result, t_left_border, t_right_border):
 
         def support_counter_with_iter_by_candidates(transaction, node, result):
             for child in node.children:
                 if list_binary_search(transaction, child.item):
-                    if child.word_finished:
+                    if child.is_list:
                         subset = tuple(child.items)
                         if subset in result.keys():
                             result[subset] += 1
@@ -273,16 +253,7 @@ def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k)
                     else:
                         support_counter_with_iter_by_candidates(transaction, child, result)
 
-        start_direction = timeit.default_timer()
-
         result = {}
-
-
-        # todo check better algorithm
-
-        # for i in range(t_left_border, t_right_border):
-        #     transaction = transactions[i]
-        #
 
         for i in range(t_left_border, t_right_border):
             transaction = transactions[i]
@@ -290,7 +261,6 @@ def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k)
                 continue
             support_counter_with_iter_by_candidates(transaction, trie, result)
 
-        stop_direction = timeit.default_timer()
         map_result.put(result)
 
     def find_frequent_map(processes_size, transactions):
@@ -318,9 +288,6 @@ def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k)
         print("Map step for find freq_k", map_stop - map_start)
         return map_result
 
-    processes_size = 2
-    start = timeit.default_timer()
-
     map_result = find_frequent_map(processes_size, transactions)
 
     shuffle_result = shuffle_function(map_result)
@@ -330,7 +297,6 @@ def find_frequent_k(transactions, trie, support_cnt, transactions_num, edges, k)
     else:
         result = {}
 
-    stop = timeit.default_timer()
     return result
 
 def generate_association_rules(f_itemsets, confidence):
@@ -370,11 +336,12 @@ def generate_association_rules(f_itemsets, confidence):
 
 def run(dataset, support_in_percent, confidence_in_percent):
     support = (support_in_percent * len(dataset) / 100)
+    processes_size = multiprocessing.cpu_count()
 
     for i in range(len(dataset)):
         dataset[i] = sorted(dataset[i])
 
-    frequent_one = list(find_frequent_one(dataset, support).items())
+    frequent_one = list(find_frequent_one(dataset, support, processes_size).items())
 
     frequent_one = sorted(frequent_one, key=lambda tup: tup[0])
     frequent_itemsets = frequent_one
@@ -403,7 +370,8 @@ def run(dataset, support_in_percent, confidence_in_percent):
 
         start_freq_k = timeit.default_timer()
 
-        frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k)
+        frequent_itemsets_k = find_frequent_k(dataset, k_candidates_trie, support, len(dataset), edges, k,
+                                              processes_size)
 
         finish_found = timeit.default_timer()
 
@@ -423,11 +391,11 @@ def run(dataset, support_in_percent, confidence_in_percent):
 
         finish_preparing = timeit.default_timer()
 
-        print("Preparing data for k = %s:" % k, finish_preparing - data_preparing_start)
+        print("Prepared data for k = %s:" % k, finish_preparing - data_preparing_start)
 
         k += 1
 
-    print("Founded frequent itemsets")
+    print("Found frequent itemsets")
     a_rules = generate_association_rules(frequent_itemsets, confidence_in_percent)
 
     return frequent_itemsets, a_rules
@@ -455,6 +423,8 @@ def create_tmp_support_table(result_data, transactions_num):
     for item, support in result_data:
         if isinstance(item, tuple):
             item = list(item)
+        else:
+            item = [item]
         # plpy.execute(insert_table_query % (item_string, support))
         print(insert_table_query % (item, support * 100))
     return result_table_name
