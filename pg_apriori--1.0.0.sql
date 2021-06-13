@@ -428,13 +428,14 @@ $$
     def create_tmp_support_table(result_data):
         dt_string = datetime.now().strftime("%Y%m%d%H%M%S")
         result_table_name = "pg_apriori_support_" + dt_string
-        create_table_query = "CREATE TABLE " + result_table_name + \
+        create_table_string_query = "CREATE TABLE %s"+ \
                              "(" + \
                              "items VARCHAR []," + \
                              "support double precision" + \
                              ")"
+        create_table_query  = create_table_string_query % (plpy.quote_ident(result_table_name))
 
-        insert_table_query = "INSERT INTO " + result_table_name + \
+        insert_table_string_query = "INSERT INTO %s" + \
                              "(items, support)" + \
                              " VALUES (ARRAY%s, %1.3f)"
 
@@ -445,7 +446,12 @@ $$
                 item = list(item)
             else:
                 item = [item]
-            plpy.execute(insert_table_query % (item, support * 100))
+            item = '[' + ', '.join(list(map(lambda e: "'" + e + "'", item))) + ']'
+            insert_items_query = insert_table_string_query % (
+                plpy.quote_ident(result_table_name),
+                item,
+                support * 100)
+            plpy.execute(insert_items_query)
         return result_table_name
 
 
